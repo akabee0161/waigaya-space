@@ -1,0 +1,89 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: ap-northeast-1
+
+      # =========================================================
+      # CDK deploy (インフラ)
+      # =========================================================
+      - name: Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: CDK deploy
+        working-directory: cdk
+        run: |
+          npx cdk deploy WaigayaSpaceStack \
+            --require-approval never \
+            --c certArn=${{ secrets.CERT_ARN }}
+
+      # =========================================================
+      # CloudFormation outputs を取得
+      # =========================================================
+      - name: Get stack outputs
+        id: stack
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name WaigayaSpaceStack \
+            --query "Stacks[0].Outputs" \
+            --output json)
+
+          APPSYNC_URL=$(echo $OUTPUTS | jq -r '.[] | select(.OutputKey=="AppSyncApiUrl") | .OutputValue')
+          APPSYNC_KEY=$(echo $OUTPUTS | jq -r '.[] | select(.OutputKey=="AppSyncApiKey") | .OutputValue')
+          BUCKET=$(echo $OUTPUTS | jq -r '.[] | select(.OutputKey=="FrontendBucketName") | .OutputValue')
+          DIST_ID=$(echo $OUTPUTS | jq -r '.[] | select(.OutputKey=="CloudFrontDistributionId") | .OutputValue')
+
+          echo "appsync_url=$APPSYNC_URL" >> $GITHUB_OUTPUT
+          echo "appsync_key=$APPSYNC_KEY" >> $GITHUB_OUTPUT
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+          echo "dist_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+      # =========================================================
+      # フロントエンド ビルド & デプロイ
+      # =========================================================
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_APPSYNC_URL: ${{ steps.stack.outputs.appsync_url }}
+          VITE_APPSYNC_API_KEY: ${{ steps.stack.outputs.appsync_key }}
+          VITE_AWS_REGION: ap-northeast-1
+        run: npm run build
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync frontend/dist/ s3://${{ steps.stack.outputs.bucket }}/ --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.stack.outputs.dist_id }} \
+            --paths "/*"
