@@ -1,0 +1,49 @@
+type Event {
+  eventId: ID!
+  title: String!
+  description: String
+  participantCode: String!
+  createdAt: String!
+  isActive: Boolean!
+}
+
+type Comment {
+  commentId: ID!
+  eventId: ID!
+  content: String!
+  authorName: String!
+  createdAt: String!
+}
+
+type CommentConnection {
+  items: [Comment!]!
+  nextToken: String
+}
+
+input CreateEventInput {
+  title: String!
+  description: String
+}
+
+input PostCommentInput {
+  eventId: ID!
+  content: String!
+  authorName: String!
+}
+
+type Query {
+  getEvent(eventId: ID!): Event
+  getEventByCode(participantCode: String!): Event
+  listComments(eventId: ID!, limit: Int, nextToken: String): CommentConnection!
+}
+
+type Mutation {
+  createEvent(input: CreateEventInput!): Event!
+  postComment(input: PostCommentInput!): Comment!
+  closeEvent(eventId: ID!): Event!
+}
+
+type Subscription {
+  onCommentPosted(eventId: ID!): Comment
+    @aws_subscribe(mutations: ["postComment"])
+}

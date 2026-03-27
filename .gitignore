@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+cdk/node_modules/
+frontend/node_modules/
+
+# CDK
+cdk/cdk.out/
+cdk/cdk.context.json
+
+# Frontend build
+frontend/dist/
+
+# Environment variables (秘密情報)
+frontend/.env
+.env
+
+# TypeScript build
+*.js.map
+cdk/*.js
+cdk/*.d.ts
+cdk/bin/*.js
+cdk/bin/*.d.ts
+cdk/lib/*.js
+cdk/lib/*.d.ts
+cdk/lambda/**/*.js
+cdk/lambda/**/*.d.ts
+
+# OS
+.DS_Store
+Thumbs.db
