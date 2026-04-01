@@ -4,6 +4,7 @@
 
 オンラインイベント等で使えるリアルタイムコメントWebアプリケーション。
 参加者がイベントルームに入室し、テキストコメントをリアルタイムで投稿・閲覧できる。
+コメントに対して絵文字リアクションを付けることもでき、リアクションもリアルタイムで全参加者に反映される。
 
 ## 技術スタック
 
@@ -30,7 +31,8 @@ waigaya-space/
 │   ├── lib/waigaya-space-stack.ts      # メインスタック定義
 │   ├── lambda/
 │   │   ├── create-event/index.ts       # イベント作成 Lambda
-│   │   └── create-comment/index.ts     # コメント投稿 Lambda
+│   │   ├── create-comment/index.ts     # コメント投稿 Lambda
+│   │   └── react-to-comment/index.ts  # リアクション Lambda（add/remove）
 │   ├── schema/schema.graphql           # GraphQL スキーマ
 │   ├── cdk.json
 │   ├── package.json
@@ -44,8 +46,8 @@ waigaya-space/
 │   │   │   └── CommentList.tsx  # コメント一覧
 │   │   ├── graphql/
 │   │   │   ├── queries.ts       # getEvent / getEventByCode / listComments
-│   │   │   ├── mutations.ts     # createEvent / postComment / closeEvent
-│   │   │   └── subscriptions.ts # onCommentPosted
+│   │   │   ├── mutations.ts     # createEvent / postComment / closeEvent / reactToComment
+│   │   │   └── subscriptions.ts # onCommentPosted / onReactionUpdated
 │   │   ├── hooks/useComments.ts # コメント取得 + Subscription フック
 │   │   ├── types/index.ts       # Event / Comment 型定義
 │   │   ├── vite-env.d.ts        # Vite 環境変数型定義
@@ -74,6 +76,9 @@ waigaya-space/
 | `WaigayaSpace-Events` | `eventId` (String) | なし | `ParticipantCodeIndex` (participantCode) |
 | `WaigayaSpace-Comments` | `eventId` (String) | `createdAt` (String) | なし |
 
+- Comments テーブルの `reactions` 属性は `AWSJSON`（Map 型）で絵文字をキー、カウントを値として保存
+- 例: `{ "👍": 3, "❤️": 1 }`
+
 ### AppSync リゾルバー
 
 | オペレーション | タイプ | リゾルバー種別 |
@@ -84,7 +89,9 @@ waigaya-space/
 | `Mutation.createEvent` | Lambda | Lambda リゾルバー |
 | `Mutation.postComment` | Lambda | Lambda リゾルバー |
 | `Mutation.closeEvent` | DynamoDB UpdateItem | DynamoDB 直接 |
+| `Mutation.reactToComment` | Lambda | Lambda リゾルバー |
 | `Subscription.onCommentPosted` | `postComment` に `@aws_subscribe` | — |
+| `Subscription.onReactionUpdated` | `reactToComment` に `@aws_subscribe` | — |
 
 ### CloudFront + S3
 
@@ -135,6 +142,20 @@ git push origin main
 
 - `import.meta.env` を使うために `src/vite-env.d.ts` が必要（`/// <reference types="vite/client" />`）
 - AppSync Subscription の戻り値は `SubscriptionObservable` インターフェースで `as unknown as` キャストして型解決
+- `reactions` は AppSync から文字列で返る場合があるため `parseReactions()` で安全にパース（`AWSJSON` スカラーの挙動）
+
+### リアクション機能
+
+- 絵文字セット: `["👍", "❤️", "😂", "😮", "👏"]`（固定）
+- ユーザーのリアクション済み状態は localStorage に `waigaya_reacted_{commentId}` キーで保存（JSON 配列）
+- 同じ絵文字を再クリックするとトグル（取り消し）される
+- Lambda 側で `action: "add" | "remove"` を受け取り、DynamoDB をアトミックにインクリメント/デクリメント
+
+### ローカル開発の注意
+
+- `npm run dev` は `.env` の AppSync エンドポイント（本番）に接続する
+- バックエンド変更（スキーマ・Lambda）を伴う場合は **デプロイ後に動作確認**すること
+- ローカルでのテストデータは本番 DynamoDB に保存される（TTL により自動削除）
 
 ### セキュリティ
 

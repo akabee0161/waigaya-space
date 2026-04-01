@@ -156,15 +156,15 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "all 0.1s",
   },
   emojiBtnActive: {
-    background: "#eff0ff", borderColor: "#c7c9f9",
+    background: "#f5f5f5", borderColor: "#e8e8e8",
   },
   emojiBtnMine: {
-    background: "#e0e0ff", borderColor: "#a5b4fc", fontWeight: 700,
+    background: "#eff0ff", borderColor: "#818cf8", fontWeight: 700,
   },
   count: { fontSize: 12, color: "#555", fontWeight: 600 },
   addBtn: {
     display: "flex", alignItems: "center",
-    padding: "3px 8px", fontSize: 14,
+    padding: "3px 8px", fontSize: 16,
     background: "#f5f5f5", border: "1.5px solid #e8e8e8",
     borderRadius: 20, cursor: "pointer", color: "#888",
   },

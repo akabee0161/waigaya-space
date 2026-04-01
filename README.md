@@ -1,6 +1,7 @@
 # waigaya.space
 
-オンラインイベント等で使えるリアルタイムコメント Web アプリケーション
+オンラインイベント等で使えるリアルタイムコメント Web アプリケーション。
+コメントへの絵文字リアクション機能付き。
 
 ## アーキテクチャ
 
@@ -16,6 +17,7 @@ CloudFront (HTTPS) ← waigaya.space (Route53 + ACM)
             ├── Query/Mutation ──► DynamoDB
             ├── Mutation.createEvent ──► Lambda ──► DynamoDB
             ├── Mutation.postComment ──► Lambda ──► DynamoDB
+            ├── Mutation.reactToComment ──► Lambda ──► DynamoDB
             └── Subscription (WebSocket) ──► リアルタイム配信
 ```
 
@@ -131,6 +133,8 @@ npm run dev
 
 `http://localhost:5173` でアクセスできます。
 
+> **注意**: ローカル開発環境は本番の AppSync（DynamoDB）に接続します。バックエンド（スキーマ・Lambda）の変更を伴う場合は、デプロイ後に動作確認してください。
+
 ---
 
 ## アプリの使い方
@@ -146,6 +150,7 @@ npm run dev
 1. トップページの入力欄に参加コードを入力
 2. 「入室する」をクリック
 3. 名前とコメントを入力して送信（同室の全員にリアルタイム反映）
+4. コメント右下の「☺+」ボタンから絵文字リアクションを追加・取り消し可能
 
 ---
 
@@ -175,8 +180,9 @@ waigaya-space/
 │   │   ├── certificate-stack.ts  # ACM 証明書スタック (us-east-1)
 │   │   └── waigaya-space-stack.ts # メインスタック定義
 │   ├── lambda/
-│   │   ├── create-event/index.ts  # イベント作成 Lambda
-│   │   └── create-comment/index.ts # コメント投稿 Lambda
+│   │   ├── create-event/index.ts       # イベント作成 Lambda
+│   │   ├── create-comment/index.ts     # コメント投稿 Lambda
+│   │   └── react-to-comment/index.ts  # リアクション Lambda（add/remove）
 │   ├── schema/
 │   │   └── schema.graphql        # GraphQL スキーマ
 │   ├── cdk.json

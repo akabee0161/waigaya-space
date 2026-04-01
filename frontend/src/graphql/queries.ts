@@ -33,6 +33,7 @@ export const LIST_COMMENTS = /* GraphQL */ `
         content
         authorName
         createdAt
+        reactions
       }
       nextToken
     }

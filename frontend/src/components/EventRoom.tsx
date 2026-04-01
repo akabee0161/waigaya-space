@@ -20,6 +20,27 @@ export function EventRoom({ event, onLeave }: Props) {
 
   const { comments, loading, error, postComment, reactToComment } = useComments(event.eventId);
 
+  const handleDownloadCSV = () => {
+    const EMOJIS = ["👍", "❤️", "😂", "😮", "👏"];
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+
+    const header = ["投稿時刻", "投稿者名", "コメント", ...EMOJIS].map(escape).join(",");
+    const rows = comments.map((c) => {
+      const time = new Date(c.createdAt).toLocaleString("ja-JP");
+      const counts = EMOJIS.map((e) => c.reactions?.[e] ?? 0);
+      return [escape(time), escape(c.authorName), escape(c.content), ...counts].join(",");
+    });
+
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + [header, ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${event.title}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || !authorName.trim()) return;
@@ -59,6 +80,9 @@ export function EventRoom({ event, onLeave }: Props) {
             <span style={styles.codeLabel}>参加コード</span>
             <span style={styles.code}>{event.participantCode}</span>
           </div>
+          <button style={styles.csvBtn} onClick={handleDownloadCSV} disabled={loading || comments.length === 0}>
+            DL
+          </button>
           <button style={styles.leaveBtn} onClick={onLeave}>
             退出
           </button>
@@ -131,6 +155,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   codeLabel: { fontSize: 10, color: "#888", letterSpacing: 1 },
   code: { fontSize: 22, fontWeight: 800, color: "#4f46e5", letterSpacing: 3 },
+  csvBtn: {
+    padding: "6px 14px", background: "transparent", border: "1.5px solid #ddd",
+    borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#4f46e5",
+  },
   leaveBtn: {
     padding: "6px 14px", background: "transparent", border: "1.5px solid #ddd",
     borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#666",
