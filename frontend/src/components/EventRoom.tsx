@@ -18,7 +18,7 @@ export function EventRoom({ event, onLeave }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
 
-  const { comments, loading, error, postComment } = useComments(event.eventId);
+  const { comments, loading, error, postComment, reactToComment } = useComments(event.eventId);
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +68,7 @@ export function EventRoom({ event, onLeave }: Props) {
       {/* コメント一覧 */}
       <div style={styles.commentsArea}>
         {error && <p style={styles.error}>{error}</p>}
-        <CommentList comments={comments} loading={loading} />
+        <CommentList comments={comments} loading={loading} onReact={reactToComment} />
       </div>
 
       {/* コメント投稿フォーム */}

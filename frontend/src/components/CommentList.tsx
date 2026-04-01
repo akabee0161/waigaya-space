@@ -1,15 +1,17 @@
 import { useEffect, useRef } from "react";
 import type { Comment } from "../types";
 
+const EMOJIS = ["👍", "❤️", "😂", "😮", "👏"];
+
 interface Props {
   comments: Comment[];
   loading: boolean;
+  onReact: (commentCreatedAt: string, emoji: string) => void;
 }
 
-export function CommentList({ comments, loading }: Props) {
+export function CommentList({ comments, loading, onReact }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 新しいコメントが追加されたら自動スクロール
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [comments.length]);
@@ -40,6 +42,24 @@ export function CommentList({ comments, loading }: Props) {
             </span>
           </div>
           <p style={styles.content}>{comment.content}</p>
+          <div style={styles.reactions}>
+            {EMOJIS.map((emoji) => {
+              const count = comment.reactions?.[emoji] ?? 0;
+              return (
+                <button
+                  key={emoji}
+                  style={{
+                    ...styles.emojiBtn,
+                    ...(count > 0 ? styles.emojiBtnActive : {}),
+                  }}
+                  onClick={() => onReact(comment.createdAt, emoji)}
+                >
+                  {emoji}
+                  {count > 0 && <span style={styles.count}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ))}
       <div ref={bottomRef} />
@@ -56,7 +76,19 @@ const styles: Record<string, React.CSSProperties> = {
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   author: { fontWeight: 700, fontSize: 14, color: "#4f46e5" },
   time: { fontSize: 12, color: "#999" },
-  content: { fontSize: 15, color: "#222", lineHeight: 1.5, wordBreak: "break-word" },
+  content: { fontSize: 15, color: "#222", lineHeight: 1.5, wordBreak: "break-word", marginBottom: 10 },
+  reactions: { display: "flex", gap: 6, flexWrap: "wrap" },
+  emojiBtn: {
+    display: "flex", alignItems: "center", gap: 3,
+    padding: "3px 8px", fontSize: 16,
+    background: "#f5f5f5", border: "1.5px solid #e8e8e8",
+    borderRadius: 20, cursor: "pointer",
+    transition: "all 0.1s",
+  },
+  emojiBtnActive: {
+    background: "#eff0ff", borderColor: "#c7c9f9",
+  },
+  count: { fontSize: 12, color: "#555", fontWeight: 600 },
   center: { textAlign: "center", color: "#888", padding: 32 },
   empty: { textAlign: "center", color: "#aaa", padding: 48, fontSize: 14 },
 };

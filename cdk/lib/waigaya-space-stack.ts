@@ -137,6 +137,26 @@ export class WaigayaSpaceStack extends cdk.Stack {
       createCommentFn
     );
 
+    const reactToCommentFn = new lambdaNodejs.NodejsFunction(
+      this,
+      "ReactToCommentFunction",
+      {
+        ...commonLambdaProps,
+        functionName: "WaigayaSpace-ReactToComment",
+        entry: path.join(__dirname, "../lambda/react-to-comment/index.ts"),
+        handler: "handler",
+        environment: {
+          COMMENTS_TABLE: commentsTable.tableName,
+        },
+      }
+    );
+    commentsTable.grantReadWriteData(reactToCommentFn);
+
+    const reactToCommentDs = api.addLambdaDataSource(
+      "ReactToCommentDataSource",
+      reactToCommentFn
+    );
+
     // --- リゾルバー: Query.getEvent ---
     eventsTableDs.createResolver("GetEventResolver", {
       typeName: "Query",
@@ -223,6 +243,14 @@ export class WaigayaSpaceStack extends cdk.Stack {
     createCommentDs.createResolver("PostCommentResolver", {
       typeName: "Mutation",
       fieldName: "postComment",
+      requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
+      responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
+    });
+
+    // --- リゾルバー: Mutation.reactToComment ---
+    reactToCommentDs.createResolver("ReactToCommentResolver", {
+      typeName: "Mutation",
+      fieldName: "reactToComment",
       requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
       responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
     });

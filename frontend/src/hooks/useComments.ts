@@ -1,26 +1,35 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { generateClient } from "aws-amplify/api";
 import { LIST_COMMENTS } from "../graphql/queries";
-import { POST_COMMENT } from "../graphql/mutations";
-import { ON_COMMENT_POSTED } from "../graphql/subscriptions";
+import { POST_COMMENT, REACT_TO_COMMENT } from "../graphql/mutations";
+import { ON_COMMENT_POSTED, ON_REACTION_UPDATED } from "../graphql/subscriptions";
 import type { Comment, CommentConnection } from "../types";
 
 const client = generateClient();
 
-interface SubscriptionObservable {
+interface SubscriptionObservable<T> {
   subscribe(observer: {
-    next: (value: { data?: { onCommentPosted?: Comment } }) => void;
+    next: (value: { data?: T }) => void;
     error: (err: unknown) => void;
   }): { unsubscribe: () => void };
+}
+
+// AWSJSON は文字列で返ることがあるため安全にパース
+function parseReactions(raw: unknown): Record<string, number> {
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  return raw as Record<string, number>;
 }
 
 export function useComments(eventId: string) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const commentSubRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const reactionSubRef = useRef<{ unsubscribe: () => void } | null>(null);
 
-  // 過去コメントをフェッチ
   const fetchComments = useCallback(async () => {
     try {
       setLoading(true);
@@ -30,7 +39,9 @@ export function useComments(eventId: string) {
       });
       const data = (result as { data: { listComments: CommentConnection } })
         .data.listComments;
-      setComments(data.items);
+      setComments(
+        data.items.map((c) => ({ ...c, reactions: parseReactions(c.reactions) }))
+      );
     } catch (err) {
       setError("コメントの取得に失敗しました");
       console.error(err);
@@ -39,40 +50,60 @@ export function useComments(eventId: string) {
     }
   }, [eventId]);
 
-  // リアルタイムSubscription
   useEffect(() => {
     fetchComments();
 
-    const observable = client.graphql({
+    // 新規コメント Subscription
+    const commentObs = client.graphql({
       query: ON_COMMENT_POSTED,
       variables: { eventId },
-    }) as unknown as SubscriptionObservable;
+    }) as unknown as SubscriptionObservable<{ onCommentPosted?: Comment }>;
 
-    const sub = observable.subscribe({
+    commentSubRef.current = commentObs.subscribe({
       next: ({ data }) => {
         const newComment = data?.onCommentPosted;
         if (newComment) {
           setComments((prev) => {
-            // 重複チェック
-            if (prev.some((c) => c.commentId === newComment.commentId)) {
-              return prev;
-            }
-            return [...prev, newComment].sort((a, b) =>
+            if (prev.some((c) => c.commentId === newComment.commentId)) return prev;
+            return [...prev, { ...newComment, reactions: {} }].sort((a, b) =>
               a.createdAt.localeCompare(b.createdAt)
             );
           });
         }
       },
       error: (err: unknown) => {
-        console.error("Subscription error:", err);
+        console.error("Comment subscription error:", err);
         setError("リアルタイム接続が切断されました");
       },
     });
 
-    subscriptionRef.current = sub;
+    // リアクション更新 Subscription
+    const reactionObs = client.graphql({
+      query: ON_REACTION_UPDATED,
+      variables: { eventId },
+    }) as unknown as SubscriptionObservable<{ onReactionUpdated?: Comment }>;
+
+    reactionSubRef.current = reactionObs.subscribe({
+      next: ({ data }) => {
+        const updated = data?.onReactionUpdated;
+        if (updated) {
+          setComments((prev) =>
+            prev.map((c) =>
+              c.commentId === updated.commentId
+                ? { ...c, reactions: parseReactions(updated.reactions) }
+                : c
+            )
+          );
+        }
+      },
+      error: (err: unknown) => {
+        console.error("Reaction subscription error:", err);
+      },
+    });
 
     return () => {
-      subscriptionRef.current?.unsubscribe();
+      commentSubRef.current?.unsubscribe();
+      reactionSubRef.current?.unsubscribe();
     };
   }, [eventId, fetchComments]);
 
@@ -87,5 +118,15 @@ export function useComments(eventId: string) {
     [eventId]
   );
 
-  return { comments, loading, error, postComment, refetch: fetchComments };
+  const reactToComment = useCallback(
+    async (commentCreatedAt: string, emoji: string) => {
+      await client.graphql({
+        query: REACT_TO_COMMENT,
+        variables: { eventId, commentCreatedAt, emoji },
+      });
+    },
+    [eventId]
+  );
+
+  return { comments, loading, error, postComment, reactToComment, refetch: fetchComments };
 }

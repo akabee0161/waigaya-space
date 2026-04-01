@@ -13,6 +13,7 @@ type Comment {
   content: String!
   authorName: String!
   createdAt: String!
+  reactions: AWSJSON
 }
 
 type CommentConnection {
@@ -41,9 +42,12 @@ type Mutation {
   createEvent(input: CreateEventInput!): Event!
   postComment(input: PostCommentInput!): Comment!
   closeEvent(eventId: ID!): Event!
+  reactToComment(eventId: ID!, commentCreatedAt: String!, emoji: String!): Comment!
 }
 
 type Subscription {
   onCommentPosted(eventId: ID!): Comment
     @aws_subscribe(mutations: ["postComment"])
+  onReactionUpdated(eventId: ID!): Comment
+    @aws_subscribe(mutations: ["reactToComment"])
 }

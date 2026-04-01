@@ -13,6 +13,7 @@ export interface Comment {
   content: string;
   authorName: string;
   createdAt: string;
+  reactions?: Record<string, number> | null;
 }
 
 export interface CommentConnection {
