@@ -42,7 +42,7 @@ type Mutation {
   createEvent(input: CreateEventInput!): Event!
   postComment(input: PostCommentInput!): Comment!
   closeEvent(eventId: ID!): Event!
-  reactToComment(eventId: ID!, commentCreatedAt: String!, emoji: String!): Comment!
+  reactToComment(eventId: ID!, commentCreatedAt: String!, emoji: String!, action: String!): Comment!
 }
 
 type Subscription {

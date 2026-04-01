@@ -24,8 +24,8 @@ export const POST_COMMENT = /* GraphQL */ `
 `;
 
 export const REACT_TO_COMMENT = /* GraphQL */ `
-  mutation ReactToComment($eventId: ID!, $commentCreatedAt: String!, $emoji: String!) {
-    reactToComment(eventId: $eventId, commentCreatedAt: $commentCreatedAt, emoji: $emoji) {
+  mutation ReactToComment($eventId: ID!, $commentCreatedAt: String!, $emoji: String!, $action: String!) {
+    reactToComment(eventId: $eventId, commentCreatedAt: $commentCreatedAt, emoji: $emoji, action: $action) {
       commentId
       eventId
       reactions

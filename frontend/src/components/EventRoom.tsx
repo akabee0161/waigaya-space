@@ -68,7 +68,7 @@ export function EventRoom({ event, onLeave }: Props) {
       {/* コメント一覧 */}
       <div style={styles.commentsArea}>
         {error && <p style={styles.error}>{error}</p>}
-        <CommentList comments={comments} loading={loading} onReact={reactToComment} />
+        <CommentList comments={comments} loading={loading} onReact={(createdAt, emoji, action) => reactToComment(createdAt, emoji, action)} />
       </div>
 
       {/* コメント投稿フォーム */}

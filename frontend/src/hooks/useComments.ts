@@ -119,10 +119,10 @@ export function useComments(eventId: string) {
   );
 
   const reactToComment = useCallback(
-    async (commentCreatedAt: string, emoji: string) => {
+    async (commentCreatedAt: string, emoji: string, action: "add" | "remove") => {
       await client.graphql({
         query: REACT_TO_COMMENT,
-        variables: { eventId, commentCreatedAt, emoji },
+        variables: { eventId, commentCreatedAt, emoji, action },
       });
     },
     [eventId]
