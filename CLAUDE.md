@@ -179,7 +179,7 @@ git push origin main
 
 ### 管理者とセキュリティ
 
-- **管理者の判定はクライアントサイドのみ**: イベント作成者の `eventId` を localStorage に保存することで管理者を識別
+- **管理者の判定はクライアントサイドのみ**: イベント作成時に `eventId` を localStorage のキー `waigaya_admin_events`（JSON 配列）に保存し、この値が存在するイベントを管理者として識別する
 - **Cognito などによるサーバーサイド認可は現段階では実装しない**。このアプリの用途（小規模オンラインイベント向け簡易ツール）では過剰なため、意図的に除外している
 - AppSync 認証方式: API Key（有効期限 365 日）
 - API Key は `.env` ファイルで管理（`.env` は `.gitignore` で Git 管理外）

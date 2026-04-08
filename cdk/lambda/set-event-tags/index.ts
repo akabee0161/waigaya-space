@@ -16,9 +16,9 @@ export const handler = async (event: {
   const { eventId, tags } = event.arguments;
   const normalizedTags = normalizeTags(tags);
 
-  // 現在の currentTag を取得し、新タグ一覧に含まれなければクリアする
+  // 強整合読み取りで現在の currentTag を取得し、新タグ一覧に含まれなければクリアする
   const current = await docClient.send(
-    new GetCommand({ TableName: EVENTS_TABLE, Key: { eventId } })
+    new GetCommand({ TableName: EVENTS_TABLE, Key: { eventId }, ConsistentRead: true })
   );
 
   if (!current.Item) {
@@ -31,15 +31,29 @@ export const handler = async (event: {
       ? existingCurrentTag
       : null;
 
+  // 読み取り時点の currentTag が変更されていない場合のみ更新する（楽観的ロック）
+  // currentTag が文字列の場合: 値が一致することを条件にする
+  // currentTag が null/未設定の場合: null → null/string は常に安全なため条件を省略
+  const conditionExpression =
+    existingCurrentTag != null
+      ? "attribute_exists(eventId) AND currentTag = :existingCurrentTag"
+      : "attribute_exists(eventId)";
+
+  const expressionAttributeValues: Record<string, unknown> = {
+    ":tags": normalizedTags,
+    ":currentTag": newCurrentTag,
+  };
+  if (existingCurrentTag != null) {
+    expressionAttributeValues[":existingCurrentTag"] = existingCurrentTag;
+  }
+
   const result = await docClient.send(
     new UpdateCommand({
       TableName: EVENTS_TABLE,
       Key: { eventId },
       UpdateExpression: "SET tags = :tags, currentTag = :currentTag",
-      ExpressionAttributeValues: {
-        ":tags": normalizedTags,
-        ":currentTag": newCurrentTag,
-      },
+      ConditionExpression: conditionExpression,
+      ExpressionAttributeValues: expressionAttributeValues,
       ReturnValues: "ALL_NEW",
     })
   );
