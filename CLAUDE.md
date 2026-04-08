@@ -6,6 +6,8 @@
 参加者がイベントルームに入室し、テキストコメントをリアルタイムで投稿・閲覧できる。
 コメントに対して絵文字リアクションを付けることもでき、リアクションもリアルタイムで全参加者に反映される。
 
+タグ機能により、参加者がテーマ別に発言を分類し、自分のタグのコメントのみ表示するフィルタリングが可能。管理者は全参加者のタグを一斉変更（ブロードキャスト）できる。
+
 ## 技術スタック
 
 | レイヤー | 技術 |
@@ -32,7 +34,8 @@ waigaya-space/
 │   ├── lambda/
 │   │   ├── create-event/index.ts       # イベント作成 Lambda
 │   │   ├── create-comment/index.ts     # コメント投稿 Lambda
-│   │   └── react-to-comment/index.ts  # リアクション Lambda（add/remove）
+│   │   ├── react-to-comment/index.ts  # リアクション Lambda（add/remove）
+│   │   └── set-event-tags/index.ts    # タグ一覧更新 Lambda
 │   ├── schema/schema.graphql           # GraphQL スキーマ
 │   ├── cdk.json
 │   ├── package.json
@@ -78,6 +81,9 @@ waigaya-space/
 
 - Comments テーブルの `reactions` 属性は `AWSJSON`（Map 型）で絵文字をキー、カウントを値として保存
 - 例: `{ "👍": 3, "❤️": 1 }`
+- Events テーブルの `tags` 属性は文字列リスト（管理者が設定したタグ一覧）
+- Events テーブルの `currentTag` 属性は管理者が全員にブロードキャストした現在のタグ（nullable）
+- Comments テーブルの `tag` 属性はコメント投稿時に選択されたタグ（nullable）
 
 ### AppSync リゾルバー
 
@@ -90,8 +96,11 @@ waigaya-space/
 | `Mutation.postComment` | Lambda | Lambda リゾルバー |
 | `Mutation.closeEvent` | DynamoDB UpdateItem | DynamoDB 直接 |
 | `Mutation.reactToComment` | Lambda | Lambda リゾルバー |
+| `Mutation.setEventTags` | Lambda | Lambda リゾルバー |
+| `Mutation.broadcastTag` | DynamoDB UpdateItem | DynamoDB 直接 |
 | `Subscription.onCommentPosted` | `postComment` に `@aws_subscribe` | — |
 | `Subscription.onReactionUpdated` | `reactToComment` に `@aws_subscribe` | — |
+| `Subscription.onTagBroadcast` | `broadcastTag` に `@aws_subscribe` | — |
 
 ### CloudFront + S3
 
@@ -157,8 +166,21 @@ git push origin main
 - バックエンド変更（スキーマ・Lambda）を伴う場合は **デプロイ後に動作確認**すること
 - ローカルでのテストデータは本番 DynamoDB に保存される（TTL により自動削除）
 
-### セキュリティ
+### タグ機能
 
+- タグ一覧は Event ごとに管理者が設定（`setEventTags` Mutation）
+- タグは保存時に正規化される（トリム・空文字除去・重複排除）
+- 参加者は管理者が設定したタグ一覧の中からのみ選択できる
+- コメント投稿時に Lambda 側でタグを検証し、一覧に存在しないタグはエラー
+- 管理者は `broadcastTag` で全参加者のタグを一斉変更。DynamoDB の condition で一覧外タグのブロードキャストを防止
+- `setEventTags` でタグ一覧を更新した際、`currentTag` が新しい一覧に含まれない場合は自動でクリア
+- 参加者の現在タグは localStorage で管理（`waigaya_current_tag_{eventId}` キー）
+- `onTagBroadcast` Subscription で管理者のブロードキャストをリアルタイムに受信し localStorage を更新
+
+### 管理者とセキュリティ
+
+- **管理者の判定はクライアントサイドのみ**: イベント作成者の `eventId` を localStorage に保存することで管理者を識別
+- **Cognito などによるサーバーサイド認可は現段階では実装しない**。このアプリの用途（小規模オンラインイベント向け簡易ツール）では過剰なため、意図的に除外している
 - AppSync 認証方式: API Key（有効期限 365 日）
 - API Key は `.env` ファイルで管理（`.env` は `.gitignore` で Git 管理外）
 - GitHub Actions の AWS 認証は OIDC（長期 IAM キーを使わない）
