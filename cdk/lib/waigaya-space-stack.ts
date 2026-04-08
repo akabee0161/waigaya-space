@@ -137,6 +137,26 @@ export class WaigayaSpaceStack extends cdk.Stack {
       createCommentFn
     );
 
+    const setEventTagsFn = new lambdaNodejs.NodejsFunction(
+      this,
+      "SetEventTagsFunction",
+      {
+        ...commonLambdaProps,
+        functionName: "WaigayaSpace-SetEventTags",
+        entry: path.join(__dirname, "../lambda/set-event-tags/index.ts"),
+        handler: "handler",
+        environment: {
+          EVENTS_TABLE: eventsTable.tableName,
+        },
+      }
+    );
+    eventsTable.grantReadWriteData(setEventTagsFn);
+
+    const setEventTagsDs = api.addLambdaDataSource(
+      "SetEventTagsDataSource",
+      setEventTagsFn
+    );
+
     const reactToCommentFn = new lambdaNodejs.NodejsFunction(
       this,
       "ReactToCommentFunction",
@@ -281,28 +301,11 @@ export class WaigayaSpaceStack extends cdk.Stack {
     });
 
     // --- リゾルバー: Mutation.setEventTags ---
-    eventsTableDs.createResolver("SetEventTagsResolver", {
+    setEventTagsDs.createResolver("SetEventTagsResolver", {
       typeName: "Mutation",
       fieldName: "setEventTags",
-      requestMappingTemplate: appsync.MappingTemplate.fromString(`
-{
-  "version": "2017-02-28",
-  "operation": "UpdateItem",
-  "key": {
-    "eventId": $util.dynamodb.toDynamoDBJson($ctx.args.eventId)
-  },
-  "update": {
-    "expression": "SET tags = :tags",
-    "expressionValues": {
-      ":tags": $util.dynamodb.toDynamoDBJson($ctx.args.tags)
-    }
-  },
-  "condition": {
-    "expression": "attribute_exists(eventId)"
-  }
-}
-      `),
-      responseMappingTemplate: appsync.MappingTemplate.dynamoDbResultItem(),
+      requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
+      responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
     });
 
     // --- リゾルバー: Mutation.broadcastTag ---

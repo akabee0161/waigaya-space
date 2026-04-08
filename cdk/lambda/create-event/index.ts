@@ -7,6 +7,11 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 const EVENTS_TABLE = process.env.EVENTS_TABLE!;
 
+function normalizeTags(tags?: string[]): string[] {
+  if (!tags) return [];
+  return [...new Set(tags.map((t) => t.trim()).filter((t) => t.length > 0))];
+}
+
 function generateParticipantCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -34,7 +39,7 @@ export const handler = async (event: {
     participantCode,
     createdAt,
     isActive: true,
-    tags: tags ?? [],
+    tags: normalizeTags(tags),
     currentTag: null,
     ttl,
   };
