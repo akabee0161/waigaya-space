@@ -40,6 +40,21 @@ export const handler = async (event: {
     throw new Error(`Event is closed: ${eventId}`);
   }
 
+  // タグのバリデーション
+  let normalizedTag: string | undefined;
+  if (tag != null) {
+    normalizedTag = tag.trim();
+    if (!normalizedTag) {
+      throw new Error("Tag must not be empty");
+    }
+    const eventTags = Array.isArray(eventResult.Item.tags)
+      ? eventResult.Item.tags.filter((t): t is string => typeof t === "string")
+      : [];
+    if (!eventTags.includes(normalizedTag)) {
+      throw new Error(`Invalid tag for event: ${normalizedTag}`);
+    }
+  }
+
   const commentId = randomUUID();
   const createdAt = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 72 * 60 * 60;
@@ -51,7 +66,7 @@ export const handler = async (event: {
     content,
     authorName,
     ttl,
-    ...(tag != null && { tag }),
+    ...(normalizedTag != null && { tag: normalizedTag }),
   };
 
   await docClient.send(
