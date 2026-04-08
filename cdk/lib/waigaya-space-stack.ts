@@ -280,6 +280,56 @@ export class WaigayaSpaceStack extends cdk.Stack {
       responseMappingTemplate: appsync.MappingTemplate.dynamoDbResultItem(),
     });
 
+    // --- リゾルバー: Mutation.setEventTags ---
+    eventsTableDs.createResolver("SetEventTagsResolver", {
+      typeName: "Mutation",
+      fieldName: "setEventTags",
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+{
+  "version": "2017-02-28",
+  "operation": "UpdateItem",
+  "key": {
+    "eventId": $util.dynamodb.toDynamoDBJson($ctx.args.eventId)
+  },
+  "update": {
+    "expression": "SET tags = :tags",
+    "expressionValues": {
+      ":tags": $util.dynamodb.toDynamoDBJson($ctx.args.tags)
+    }
+  },
+  "condition": {
+    "expression": "attribute_exists(eventId)"
+  }
+}
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.dynamoDbResultItem(),
+    });
+
+    // --- リゾルバー: Mutation.broadcastTag ---
+    eventsTableDs.createResolver("BroadcastTagResolver", {
+      typeName: "Mutation",
+      fieldName: "broadcastTag",
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+{
+  "version": "2017-02-28",
+  "operation": "UpdateItem",
+  "key": {
+    "eventId": $util.dynamodb.toDynamoDBJson($ctx.args.eventId)
+  },
+  "update": {
+    "expression": "SET currentTag = :tag",
+    "expressionValues": {
+      ":tag": $util.dynamodb.toDynamoDBJson($ctx.args.tag)
+    }
+  },
+  "condition": {
+    "expression": "attribute_exists(eventId)"
+  }
+}
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.dynamoDbResultItem(),
+    });
+
     // =========================================================
     // S3 バケット (フロントエンド静的ホスティング)
     // =========================================================

@@ -10,10 +10,10 @@ const COMMENTS_TABLE = process.env.COMMENTS_TABLE!;
 
 export const handler = async (event: {
   arguments: {
-    input: { eventId: string; content: string; authorName: string };
+    input: { eventId: string; content: string; authorName: string; tag?: string };
   };
 }) => {
-  const { eventId, content, authorName } = event.arguments.input;
+  const { eventId, content, authorName, tag } = event.arguments.input;
 
   // イベントの存在・アクティブ状態を確認
   const eventResult = await docClient.send(
@@ -34,7 +34,7 @@ export const handler = async (event: {
   const createdAt = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 72 * 60 * 60;
 
-  const item = {
+  const item: Record<string, unknown> = {
     eventId,
     createdAt,
     commentId,
@@ -42,6 +42,10 @@ export const handler = async (event: {
     authorName,
     ttl,
   };
+
+  if (tag !== undefined && tag !== null) {
+    item.tag = tag;
+  }
 
   await docClient.send(
     new PutCommand({

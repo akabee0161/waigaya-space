@@ -5,6 +5,8 @@ type Event {
   participantCode: String!
   createdAt: String!
   isActive: Boolean!
+  tags: [String!]!
+  currentTag: String
 }
 
 type Comment {
@@ -14,6 +16,7 @@ type Comment {
   authorName: String!
   createdAt: String!
   reactions: AWSJSON
+  tag: String
 }
 
 type CommentConnection {
@@ -24,12 +27,14 @@ type CommentConnection {
 input CreateEventInput {
   title: String!
   description: String
+  tags: [String!]
 }
 
 input PostCommentInput {
   eventId: ID!
   content: String!
   authorName: String!
+  tag: String
 }
 
 type Query {
@@ -43,6 +48,8 @@ type Mutation {
   postComment(input: PostCommentInput!): Comment!
   closeEvent(eventId: ID!): Event!
   reactToComment(eventId: ID!, commentCreatedAt: String!, emoji: String!, action: String!): Comment!
+  setEventTags(eventId: ID!, tags: [String!]!): Event!
+  broadcastTag(eventId: ID!, tag: String!): Event!
 }
 
 type Subscription {
@@ -50,4 +57,6 @@ type Subscription {
     @aws_subscribe(mutations: ["postComment"])
   onReactionUpdated(eventId: ID!): Comment
     @aws_subscribe(mutations: ["reactToComment"])
+  onTagBroadcast(eventId: ID!): Event
+    @aws_subscribe(mutations: ["broadcastTag"])
 }

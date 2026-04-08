@@ -17,9 +17,9 @@ function generateParticipantCode(): string {
 }
 
 export const handler = async (event: {
-  arguments: { input: { title: string; description?: string } };
+  arguments: { input: { title: string; description?: string; tags?: string[] } };
 }) => {
-  const { title, description } = event.arguments.input;
+  const { title, description, tags } = event.arguments.input;
 
   const eventId = randomUUID();
   const participantCode = generateParticipantCode();
@@ -34,6 +34,8 @@ export const handler = async (event: {
     participantCode,
     createdAt,
     isActive: true,
+    tags: tags ?? [],
+    currentTag: null,
     ttl,
   };
 
