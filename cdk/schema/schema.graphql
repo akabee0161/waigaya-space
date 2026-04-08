@@ -5,7 +5,7 @@ type Event {
   participantCode: String!
   createdAt: String!
   isActive: Boolean!
-  tags: [String!]!
+  tags: [String!]
   currentTag: String
 }
 

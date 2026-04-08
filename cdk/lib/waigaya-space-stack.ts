@@ -323,7 +323,10 @@ export class WaigayaSpaceStack extends cdk.Stack {
     }
   },
   "condition": {
-    "expression": "attribute_exists(eventId)"
+    "expression": "attribute_exists(eventId) AND contains(tags, :tag)",
+    "expressionValues": {
+      ":tag": $util.dynamodb.toDynamoDBJson($ctx.args.tag)
+    }
   }
 }
       `),

@@ -8,6 +8,16 @@ const docClient = DynamoDBDocumentClient.from(client);
 const EVENTS_TABLE = process.env.EVENTS_TABLE!;
 const COMMENTS_TABLE = process.env.COMMENTS_TABLE!;
 
+interface CommentItem {
+  eventId: string;
+  createdAt: string;
+  commentId: string;
+  content: string;
+  authorName: string;
+  ttl: number;
+  tag?: string;
+}
+
 export const handler = async (event: {
   arguments: {
     input: { eventId: string; content: string; authorName: string; tag?: string };
@@ -34,18 +44,15 @@ export const handler = async (event: {
   const createdAt = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 72 * 60 * 60;
 
-  const item: Record<string, unknown> = {
+  const item: CommentItem = {
     eventId,
     createdAt,
     commentId,
     content,
     authorName,
     ttl,
+    ...(tag != null && { tag }),
   };
-
-  if (tag !== undefined && tag !== null) {
-    item.tag = tag;
-  }
 
   await docClient.send(
     new PutCommand({
