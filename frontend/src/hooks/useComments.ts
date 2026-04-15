@@ -35,7 +35,21 @@ export function useComments(eventId: string) {
       setLoading(true);
       const allItems: Comment[] = [];
       let nextToken: string | null = null;
+      const seenTokens = new Set<string>();
+      const MAX_PAGES = 1000;
+      let page = 0;
       do {
+        if (page++ >= MAX_PAGES) {
+          console.error("fetchComments: MAX_PAGES exceeded");
+          break;
+        }
+        if (nextToken) {
+          if (seenTokens.has(nextToken)) {
+            console.error("fetchComments: repeated nextToken detected");
+            break;
+          }
+          seenTokens.add(nextToken);
+        }
         const result = await client.graphql({
           query: LIST_COMMENTS,
           variables: { eventId, limit: 100, nextToken },
