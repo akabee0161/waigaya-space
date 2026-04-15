@@ -54,10 +54,11 @@ export function useComments(eventId: string) {
           query: LIST_COMMENTS,
           variables: { eventId, limit: 100, nextToken },
         });
-        const data = (result as { data: { listComments: CommentConnection } })
-          .data.listComments;
+        const data: CommentConnection = (
+          result as { data: { listComments: CommentConnection } }
+        ).data.listComments;
         allItems.push(
-          ...data.items.map((c) => ({ ...c, reactions: parseReactions(c.reactions) }))
+          ...data.items.map((c: Comment) => ({ ...c, reactions: parseReactions(c.reactions) }))
         );
         nextToken = data.nextToken ?? null;
       } while (nextToken);
