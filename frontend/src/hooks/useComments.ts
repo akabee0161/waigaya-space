@@ -50,7 +50,7 @@ export function useComments(eventId: string) {
           }
           seenTokens.add(nextToken);
         }
-        const result = await client.graphql<{ listComments: CommentConnection }>({
+        const result = await client.graphql({
           query: LIST_COMMENTS,
           variables: { eventId, limit: 100, nextToken },
         });
