@@ -33,15 +33,21 @@ export function useComments(eventId: string) {
   const fetchComments = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await client.graphql({
-        query: LIST_COMMENTS,
-        variables: { eventId, limit: 100 },
-      });
-      const data = (result as { data: { listComments: CommentConnection } })
-        .data.listComments;
-      setComments(
-        data.items.map((c) => ({ ...c, reactions: parseReactions(c.reactions) }))
-      );
+      const allItems: Comment[] = [];
+      let nextToken: string | null = null;
+      do {
+        const result = await client.graphql({
+          query: LIST_COMMENTS,
+          variables: { eventId, limit: 100, nextToken },
+        });
+        const data = (result as { data: { listComments: CommentConnection } })
+          .data.listComments;
+        allItems.push(
+          ...data.items.map((c) => ({ ...c, reactions: parseReactions(c.reactions) }))
+        );
+        nextToken = data.nextToken ?? null;
+      } while (nextToken);
+      setComments(allItems);
     } catch (err) {
       setError("コメントの取得に失敗しました");
       console.error(err);

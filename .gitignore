@@ -6,6 +6,7 @@ frontend/node_modules/
 # CDK
 cdk/cdk.out/
 cdk/cdk.context.json
+cdk/dist/
 
 # Frontend build
 frontend/dist/
