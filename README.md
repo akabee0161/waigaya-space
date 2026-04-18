@@ -3,6 +3,8 @@
 オンラインイベント等で使えるリアルタイムコメント Web アプリケーション。
 コメントへの絵文字リアクション機能付き。
 
+タグ機能により、参加者がテーマ別に発言を分類・フィルタリングできます。
+
 ## アーキテクチャ
 
 ```
@@ -18,6 +20,8 @@ CloudFront (HTTPS) ← waigaya.space (Route53 + ACM)
             ├── Mutation.createEvent ──► Lambda ──► DynamoDB
             ├── Mutation.postComment ──► Lambda ──► DynamoDB
             ├── Mutation.reactToComment ──► Lambda ──► DynamoDB
+            ├── Mutation.setEventTags ──► Lambda ──► DynamoDB
+            ├── Mutation.broadcastTag ──► DynamoDB
             └── Subscription (WebSocket) ──► リアルタイム配信
 ```
 
@@ -139,18 +143,22 @@ npm run dev
 
 ## アプリの使い方
 
-### イベント主催者
+### イベント主催者（管理者）
 
 1. トップページで「新しいイベントを作成」をクリック
-2. イベント名・説明を入力して作成
+2. イベント名・説明・タグ一覧を入力して作成
 3. 表示される **6桁の参加コード** を参加者に共有
+4. イベントルームでタグ一覧の編集や、全参加者のタグを一斉変更（ブロードキャスト）が可能
+
+> **管理者の判定について**: イベント作成時に `eventId` が localStorage のキー `waigaya_admin_events`（JSON 配列）に保存されます。この値が存在するイベントのみ管理者として扱います。Cognito などによるサーバーサイドの認可は現段階では実装していません。
 
 ### 参加者
 
 1. トップページの入力欄に参加コードを入力
 2. 「入室する」をクリック
-3. 名前とコメントを入力して送信（同室の全員にリアルタイム反映）
-4. コメント右下の「☺+」ボタンから絵文字リアクションを追加・取り消し可能
+3. 名前・タグを選択してコメントを送信（同室の全員にリアルタイム反映）
+4. 自分のタグのコメントのみ表示 / 全タグ表示を切り替え可能
+5. コメント右下の「☺+」ボタンから絵文字リアクションを追加・取り消し可能
 
 ---
 
@@ -182,7 +190,8 @@ waigaya-space/
 │   ├── lambda/
 │   │   ├── create-event/index.ts       # イベント作成 Lambda
 │   │   ├── create-comment/index.ts     # コメント投稿 Lambda
-│   │   └── react-to-comment/index.ts  # リアクション Lambda（add/remove）
+│   │   ├── react-to-comment/index.ts  # リアクション Lambda（add/remove）
+│   │   └── set-event-tags/index.ts    # タグ一覧更新 Lambda
 │   ├── schema/
 │   │   └── schema.graphql        # GraphQL スキーマ
 │   ├── cdk.json

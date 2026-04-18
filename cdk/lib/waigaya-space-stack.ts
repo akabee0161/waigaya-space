@@ -137,6 +137,26 @@ export class WaigayaSpaceStack extends cdk.Stack {
       createCommentFn
     );
 
+    const setEventTagsFn = new lambdaNodejs.NodejsFunction(
+      this,
+      "SetEventTagsFunction",
+      {
+        ...commonLambdaProps,
+        functionName: "WaigayaSpace-SetEventTags",
+        entry: path.join(__dirname, "../lambda/set-event-tags/index.ts"),
+        handler: "handler",
+        environment: {
+          EVENTS_TABLE: eventsTable.tableName,
+        },
+      }
+    );
+    eventsTable.grantReadWriteData(setEventTagsFn);
+
+    const setEventTagsDs = api.addLambdaDataSource(
+      "SetEventTagsDataSource",
+      setEventTagsFn
+    );
+
     const reactToCommentFn = new lambdaNodejs.NodejsFunction(
       this,
       "ReactToCommentFunction",
@@ -274,6 +294,42 @@ export class WaigayaSpaceStack extends cdk.Stack {
   },
   "condition": {
     "expression": "attribute_exists(eventId)"
+  }
+}
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.dynamoDbResultItem(),
+    });
+
+    // --- リゾルバー: Mutation.setEventTags ---
+    setEventTagsDs.createResolver("SetEventTagsResolver", {
+      typeName: "Mutation",
+      fieldName: "setEventTags",
+      requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
+      responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
+    });
+
+    // --- リゾルバー: Mutation.broadcastTag ---
+    eventsTableDs.createResolver("BroadcastTagResolver", {
+      typeName: "Mutation",
+      fieldName: "broadcastTag",
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+{
+  "version": "2017-02-28",
+  "operation": "UpdateItem",
+  "key": {
+    "eventId": $util.dynamodb.toDynamoDBJson($ctx.args.eventId)
+  },
+  "update": {
+    "expression": "SET currentTag = :tag",
+    "expressionValues": {
+      ":tag": $util.dynamodb.toDynamoDBJson($ctx.args.tag)
+    }
+  },
+  "condition": {
+    "expression": "attribute_exists(eventId) AND contains(tags, :tag)",
+    "expressionValues": {
+      ":tag": $util.dynamodb.toDynamoDBJson($ctx.args.tag)
+    }
   }
 }
       `),

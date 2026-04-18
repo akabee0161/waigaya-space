@@ -7,6 +7,11 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 const EVENTS_TABLE = process.env.EVENTS_TABLE!;
 
+function normalizeTags(tags?: string[]): string[] {
+  if (!tags) return [];
+  return [...new Set(tags.map((t) => t.trim()).filter((t) => t.length > 0))];
+}
+
 function generateParticipantCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -17,9 +22,9 @@ function generateParticipantCode(): string {
 }
 
 export const handler = async (event: {
-  arguments: { input: { title: string; description?: string } };
+  arguments: { input: { title: string; description?: string; tags?: string[] } };
 }) => {
-  const { title, description } = event.arguments.input;
+  const { title, description, tags } = event.arguments.input;
 
   const eventId = randomUUID();
   const participantCode = generateParticipantCode();
@@ -34,6 +39,8 @@ export const handler = async (event: {
     participantCode,
     createdAt,
     isActive: true,
+    tags: normalizeTags(tags),
+    currentTag: null,
     ttl,
   };
 
