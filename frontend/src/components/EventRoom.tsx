@@ -30,7 +30,7 @@ export function EventRoom({ event, onLeave }: Props) {
   }, [image]);
 
   const selectImage = (file: File | undefined) => {
-    if (!file) return;
+    if (!file || submitting) return;
     const err = validateImage(file);
     if (err) { setPostError(err); return; }
     setPostError(null);
@@ -89,6 +89,7 @@ export function EventRoom({ event, onLeave }: Props) {
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (submitting) return;
     const file = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
     if (file) {
       e.preventDefault();
@@ -146,6 +147,7 @@ export function EventRoom({ event, onLeave }: Props) {
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              readOnly={submitting}
               required
               maxLength={500}
               rows={3}

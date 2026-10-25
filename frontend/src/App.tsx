@@ -42,6 +42,8 @@ export default function App() {
   const [restoring, setRestoring] = useState(() => codeFromPath() !== null);
   // restore 呼び出しごとの世代。古い応答が新しい画面を上書きしないようにする
   const restoreGen = useRef(0);
+  // 履歴移動のたびに進め、保留中の処理を持つ入力画面を作り直す
+  const [navKey, setNavKey] = useState(0);
 
   // URL の参加コードからイベントを復元（リロード・URL 共有・戻る/進む）
   useEffect(() => {
@@ -80,7 +82,10 @@ export default function App() {
       }
     };
     restore();
-    const onPopState = () => { restore(); };
+    const onPopState = () => {
+      setNavKey((k) => k + 1);
+      restore();
+    };
     window.addEventListener("popstate", onPopState);
     return () => {
       cancelled = true;
@@ -118,7 +123,7 @@ export default function App() {
           <button style={styles.backBtn} onClick={() => setScreen("join")}>
             ← 戻る
           </button>
-          <CreateEvent onCreated={handleCreated} />
+          <CreateEvent key={navKey} onCreated={handleCreated} />
         </div>
       </div>
     );
@@ -126,6 +131,7 @@ export default function App() {
 
   return (
     <JoinEvent
+      key={navKey}
       onJoined={handleJoined}
       onCreateNew={() => setScreen("create")}
     />

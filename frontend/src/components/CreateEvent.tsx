@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { generateClient } from "aws-amplify/api";
 import { CREATE_EVENT } from "../graphql/mutations";
 import type { Event } from "../types";
@@ -14,6 +14,12 @@ export function CreateEvent({ onCreated }: Props) {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 履歴移動などでアンマウントされた後は、遅れて返った結果で画面遷移しない
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +33,7 @@ export function CreateEvent({ onCreated }: Props) {
         variables: { input: { title: title.trim(), description: description.trim() || undefined } },
       });
       const event = (result as { data: { createEvent: Event } }).data.createEvent;
+      if (!mountedRef.current) return;
       onCreated(event);
     } catch (err) {
       setError("イベントの作成に失敗しました");
