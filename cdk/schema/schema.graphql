@@ -14,6 +14,12 @@ type Comment {
   authorName: String!
   createdAt: String!
   reactions: AWSJSON
+  imageKey: String
+}
+
+type UploadUrl {
+  uploadUrl: String!
+  imageKey: String!
 }
 
 type CommentConnection {
@@ -30,12 +36,14 @@ input PostCommentInput {
   eventId: ID!
   content: String!
   authorName: String!
+  imageKey: String
 }
 
 type Query {
   getEvent(eventId: ID!): Event
   getEventByCode(participantCode: String!): Event
   listComments(eventId: ID!, limit: Int, nextToken: String): CommentConnection!
+  getUploadUrl(contentType: String!): UploadUrl!
 }
 
 type Mutation {

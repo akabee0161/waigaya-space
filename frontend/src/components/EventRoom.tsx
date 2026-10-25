@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useComments } from "../hooks/useComments";
 import { CommentList } from "./CommentList";
+import { validateImage, ALLOWED_IMAGE_TYPES } from "../utils/image";
 import type { Event } from "../types";
 
 interface Props {
@@ -17,8 +18,26 @@ export function EventRoom({ event, onLeave }: Props) {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [image, setImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { comments, loading, error, postComment, reactToComment } = useComments(event.eventId);
+  useEffect(() => {
+    if (!image) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(image);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [image]);
+
+  const selectImage = (file: File | undefined) => {
+    if (!file || submitting) return;
+    const err = validateImage(file);
+    if (err) { setPostError(err); return; }
+    setPostError(null);
+    setImage(file);
+  };
+
+  const { comments, loading, error, postComment, uploadImage, reactToComment } = useComments(event.eventId);
 
   const handleDownloadCSV = () => {
     const EMOJIS = ["👍", "❤️", "😂", "😮", "👏"];
@@ -28,7 +47,8 @@ export function EventRoom({ event, onLeave }: Props) {
     const rows = comments.map((c) => {
       const time = new Date(c.createdAt).toLocaleString("ja-JP");
       const counts = EMOJIS.map((e) => c.reactions?.[e] ?? 0);
-      return [escape(time), escape(c.authorName), escape(c.content), ...counts].join(",");
+      const text = c.imageKey ? `${c.content} [画像添付]` : c.content;
+      return [escape(time), escape(c.authorName), escape(text), ...counts].join(",");
     });
 
     const bom = "\uFEFF";
@@ -43,14 +63,16 @@ export function EventRoom({ event, onLeave }: Props) {
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !authorName.trim()) return;
+    if (submitting || !content.trim() || !authorName.trim()) return;
 
     setSubmitting(true);
     setPostError(null);
     try {
       localStorage.setItem(AUTHOR_KEY, authorName.trim());
-      await postComment(content.trim(), authorName.trim());
+      const imageKey = image ? await uploadImage(image) : undefined;
+      await postComment(content.trim(), authorName.trim(), imageKey);
       setContent("");
+      setImage(null);
     } catch (err) {
       setPostError("コメントの投稿に失敗しました");
       console.error(err);
@@ -60,8 +82,18 @@ export function EventRoom({ event, onLeave }: Props) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      handlePost(e as unknown as React.FormEvent);
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    if (e.shiftKey) return; // Shift+Enter は改行
+    e.preventDefault();
+    handlePost(e as unknown as React.FormEvent);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (submitting) return;
+    const file = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
+    if (file) {
+      e.preventDefault();
+      selectImage(file);
     }
   };
 
@@ -104,20 +136,42 @@ export function EventRoom({ event, onLeave }: Props) {
             placeholder="お名前"
             value={authorName}
             onChange={(e) => setAuthorName(e.target.value)}
+            readOnly={submitting}
             required
             maxLength={50}
           />
           <div style={styles.textareaRow}>
             <textarea
               style={styles.textarea}
-              placeholder="コメントを入力… (Ctrl+Enter で送信)"
+              placeholder="コメントを入力… (Enter で送信 / Shift+Enter で改行)"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              readOnly={submitting}
               required
               maxLength={500}
               rows={3}
             />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ALLOWED_IMAGE_TYPES.join(",")}
+              style={{ display: "none" }}
+              onChange={(e) => {
+                selectImage(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              style={styles.attachBtn}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={submitting}
+              title="画像を添付"
+            >
+              🖼
+            </button>
             <button
               style={{
                 ...styles.sendBtn,
@@ -129,6 +183,19 @@ export function EventRoom({ event, onLeave }: Props) {
               {submitting ? "送信中" : "送信"}
             </button>
           </div>
+          {previewUrl && (
+            <div style={styles.previewRow}>
+              <img src={previewUrl} alt="添付プレビュー" style={styles.preview} />
+              <button
+                type="button"
+                style={styles.removeImageBtn}
+                onClick={() => setImage(null)}
+                disabled={submitting}
+              >
+                ✕ 画像を外す
+              </button>
+            </div>
+          )}
           {postError && <p style={styles.error}>{postError}</p>}
           <p style={styles.hint}>{content.length} / 500</p>
         </form>
@@ -176,6 +243,16 @@ const styles: Record<string, React.CSSProperties> = {
   textarea: {
     flex: 1, padding: "10px 12px", fontSize: 14, border: "1.5px solid #ddd",
     borderRadius: 8, outline: "none", resize: "none",
+  },
+  attachBtn: {
+    padding: "10px 12px", background: "transparent", border: "1.5px solid #ddd",
+    borderRadius: 8, cursor: "pointer", fontSize: 16,
+  },
+  previewRow: { display: "flex", alignItems: "center", gap: 10 },
+  preview: { maxHeight: 80, maxWidth: 160, borderRadius: 6, border: "1px solid #eee" },
+  removeImageBtn: {
+    background: "transparent", border: "none", cursor: "pointer",
+    color: "#666", fontSize: 12,
   },
   sendBtn: {
     padding: "10px 20px", background: "#4f46e5", color: "#fff",

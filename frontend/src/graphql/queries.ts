@@ -34,8 +34,18 @@ export const LIST_COMMENTS = /* GraphQL */ `
         authorName
         createdAt
         reactions
+        imageKey
       }
       nextToken
+    }
+  }
+`;
+
+export const GET_UPLOAD_URL = /* GraphQL */ `
+  query GetUploadUrl($contentType: String!) {
+    getUploadUrl(contentType: $contentType) {
+      uploadUrl
+      imageKey
     }
   }
 `;

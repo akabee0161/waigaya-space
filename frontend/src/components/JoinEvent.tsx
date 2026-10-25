@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { generateClient } from "aws-amplify/api";
 import { GET_EVENT_BY_CODE } from "../graphql/queries";
 import type { Event } from "../types";
@@ -14,6 +14,12 @@ export function JoinEvent({ onJoined, onCreateNew }: Props) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 履歴移動などでアンマウントされた後は、遅れて返った結果で画面遷移しない
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +39,7 @@ export function JoinEvent({ onJoined, onCreateNew }: Props) {
         setError("指定された参加コードのイベントが見つかりません");
         return;
       }
+      if (!mountedRef.current) return;
       onJoined(event);
     } catch (err) {
       setError("イベントの検索に失敗しました");

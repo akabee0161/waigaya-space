@@ -14,6 +14,7 @@ export interface Comment {
   authorName: string;
   createdAt: string;
   reactions?: Record<string, number> | null;
+  imageKey?: string | null;
 }
 
 export interface CommentConnection {
