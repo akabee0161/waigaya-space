@@ -63,7 +63,7 @@ export function EventRoom({ event, onLeave }: Props) {
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !authorName.trim()) return;
+    if (submitting || !content.trim() || !authorName.trim()) return;
 
     setSubmitting(true);
     setPostError(null);

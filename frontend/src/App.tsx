@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/api";
 import { JoinEvent } from "./components/JoinEvent";
@@ -28,18 +28,27 @@ const roomPath = (code: string) => `/e/${encodeURIComponent(code)}`;
 // /e/<参加コード> から参加コードを取り出す
 const codeFromPath = (): string | null => {
   const m = window.location.pathname.match(/^\/e\/([^/]+)\/?$/);
-  return m ? decodeURIComponent(m[1]).toUpperCase() : null;
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]).toUpperCase();
+  } catch {
+    return null; // 不正なエンコードは参加画面へ
+  }
 };
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("join");
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null);
   const [restoring, setRestoring] = useState(() => codeFromPath() !== null);
+  // restore 呼び出しごとの世代。古い応答が新しい画面を上書きしないようにする
+  const restoreGen = useRef(0);
 
   // URL の参加コードからイベントを復元（リロード・URL 共有・戻る/進む）
   useEffect(() => {
     let cancelled = false;
     const restore = async () => {
+      const gen = ++restoreGen.current;
+      const isStale = () => cancelled || gen !== restoreGen.current;
       const code = codeFromPath();
       if (!code) {
         setCurrentEvent(null);
@@ -53,7 +62,7 @@ export default function App() {
           query: GET_EVENT_BY_CODE,
           variables: { participantCode: code },
         });
-        if (cancelled) return;
+        if (isStale()) return;
         const event = (result as { data: { getEventByCode: Event | null } })
           .data.getEventByCode;
         if (event) {
@@ -65,9 +74,9 @@ export default function App() {
         }
       } catch (err) {
         console.error(err);
-        if (!cancelled) setScreen("join");
+        if (!isStale()) setScreen("join");
       } finally {
-        if (!cancelled) setRestoring(false);
+        if (!isStale()) setRestoring(false);
       }
     };
     restore();
