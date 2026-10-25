@@ -55,6 +55,29 @@ export class WaigayaSpaceStack extends cdk.Stack {
     });
 
     // =========================================================
+    // S3 バケット (コメント添付画像)
+    // =========================================================
+    const imagesBucket = new s3.Bucket(this, "ImagesBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      // コメント (TTL 72h) より少し長く保持して削除
+      lifecycleRules: [{ expiration: cdk.Duration.days(4) }],
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedOrigins: [
+            "https://waigaya.space",
+            "https://www.waigaya.space",
+            "http://localhost:5173",
+          ],
+          allowedHeaders: ["*"],
+        },
+      ],
+    });
+
+    // =========================================================
     // Lambda 関数
     // =========================================================
     const commonLambdaProps: Partial<lambdaNodejs.NodejsFunctionProps> = {
@@ -99,6 +122,27 @@ export class WaigayaSpaceStack extends cdk.Stack {
     );
     eventsTable.grantReadData(createCommentFn);
     commentsTable.grantReadWriteData(createCommentFn);
+
+    // 署名付きアップロード URL 発行 (presigner は確実に含めるためバンドルする)
+    const getUploadUrlFn = new lambdaNodejs.NodejsFunction(
+      this,
+      "GetUploadUrlFunction",
+      {
+        ...commonLambdaProps,
+        functionName: "WaigayaSpace-GetUploadUrl",
+        entry: path.join(__dirname, "../lambda/get-upload-url/index.ts"),
+        handler: "handler",
+        environment: {
+          IMAGES_BUCKET: imagesBucket.bucketName,
+        },
+        bundling: {
+          minify: true,
+          sourceMap: false,
+          forceDockerBundling: false,
+        },
+      }
+    );
+    imagesBucket.grantPut(getUploadUrlFn);
 
     // =========================================================
     // AppSync GraphQL API
@@ -155,6 +199,11 @@ export class WaigayaSpaceStack extends cdk.Stack {
     const reactToCommentDs = api.addLambdaDataSource(
       "ReactToCommentDataSource",
       reactToCommentFn
+    );
+
+    const getUploadUrlDs = api.addLambdaDataSource(
+      "GetUploadUrlDataSource",
+      getUploadUrlFn
     );
 
     // --- リゾルバー: Query.getEvent ---
@@ -229,6 +278,14 @@ export class WaigayaSpaceStack extends cdk.Stack {
   #end
 }
       `),
+    });
+
+    // --- リゾルバー: Query.getUploadUrl ---
+    getUploadUrlDs.createResolver("GetUploadUrlResolver", {
+      typeName: "Query",
+      fieldName: "getUploadUrl",
+      requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
+      responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
     });
 
     // --- リゾルバー: Mutation.createEvent ---
@@ -320,6 +377,17 @@ export class WaigayaSpaceStack extends cdk.Stack {
         domainNames: ["waigaya.space", "www.waigaya.space"],
         certificate,
         defaultRootObject: "index.html",
+        additionalBehaviors: {
+          "/images/*": {
+            origin: origins.S3BucketOrigin.withOriginAccessControl(
+              imagesBucket
+            ),
+            viewerProtocolPolicy:
+              cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          },
+        },
         errorResponses: [
           {
             httpStatus: 403,

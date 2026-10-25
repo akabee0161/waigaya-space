@@ -8,12 +8,24 @@ const docClient = DynamoDBDocumentClient.from(client);
 const EVENTS_TABLE = process.env.EVENTS_TABLE!;
 const COMMENTS_TABLE = process.env.COMMENTS_TABLE!;
 
+const IMAGE_KEY_PATTERN = /^images\/[0-9a-f-]{36}\.(jpg|png|gif|webp)$/;
+
 export const handler = async (event: {
   arguments: {
-    input: { eventId: string; content: string; authorName: string };
+    input: {
+      eventId: string;
+      content: string;
+      authorName: string;
+      imageKey?: string | null;
+    };
   };
 }) => {
-  const { eventId, content, authorName } = event.arguments.input;
+  const { eventId, content, authorName, imageKey } = event.arguments.input;
+
+  // get-upload-url が発行した形式のキーのみ受け付ける
+  if (imageKey && !IMAGE_KEY_PATTERN.test(imageKey)) {
+    throw new Error("Invalid imageKey");
+  }
 
   // イベントの存在・アクティブ状態を確認
   const eventResult = await docClient.send(
@@ -40,6 +52,7 @@ export const handler = async (event: {
     commentId,
     content,
     authorName,
+    ...(imageKey ? { imageKey } : {}),
     ttl,
   };
 
