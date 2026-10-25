@@ -259,12 +259,12 @@ export class WaigayaSpaceStack extends cdk.Stack {
       ":eventId": $util.dynamodb.toDynamoDBJson($ctx.args.eventId)
     }
   },
-  "scanIndexForward": true,
+  "scanIndexForward": true
   #if($ctx.args.limit)
-    "limit": $ctx.args.limit,
+    , "limit": $ctx.args.limit
   #end
   #if($ctx.args.nextToken)
-    "nextToken": "$ctx.args.nextToken"
+    , "nextToken": "$ctx.args.nextToken"
   #end
 }
       `),
