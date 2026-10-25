@@ -32,7 +32,8 @@ waigaya-space/
 │   ├── lambda/
 │   │   ├── create-event/index.ts       # イベント作成 Lambda
 │   │   ├── create-comment/index.ts     # コメント投稿 Lambda
-│   │   └── react-to-comment/index.ts  # リアクション Lambda（add/remove）
+│   │   ├── react-to-comment/index.ts  # リアクション Lambda（add/remove）
+│   │   └── get-upload-url/index.ts    # 画像アップロード用の署名付き URL 発行 Lambda
 │   ├── schema/schema.graphql           # GraphQL スキーマ
 │   ├── cdk.json
 │   ├── package.json
@@ -90,6 +91,7 @@ waigaya-space/
 | `Mutation.postComment` | Lambda | Lambda リゾルバー |
 | `Mutation.closeEvent` | DynamoDB UpdateItem | DynamoDB 直接 |
 | `Mutation.reactToComment` | Lambda | Lambda リゾルバー |
+| `Query.getUploadUrl` | Lambda | Lambda リゾルバー |
 | `Subscription.onCommentPosted` | `postComment` に `@aws_subscribe` | — |
 | `Subscription.onReactionUpdated` | `reactToComment` に `@aws_subscribe` | — |
 
@@ -143,6 +145,15 @@ git push origin main
 - `import.meta.env` を使うために `src/vite-env.d.ts` が必要（`/// <reference types="vite/client" />`）
 - AppSync Subscription の戻り値は `SubscriptionObservable` インターフェースで `as unknown as` キャストして型解決
 - `reactions` は AppSync から文字列で返る場合があるため `parseReactions()` で安全にパース（`AWSJSON` スカラーの挙動）
+
+### 画像添付・URL・入力
+
+- 画像は専用 S3 バケットに署名付き PUT URL で直接アップロードし、コメントには `imageKey`（`images/<uuid>.<ext>`）のみ保存
+- 配信は CloudFront の `/images/*`（OAC）。バケットは 4 日で自動削除
+- 対応形式は JPEG/PNG/GIF/WebP、5MB 以下（上限チェックはフロントのみ）。画像のみの投稿は不可（テキスト必須）
+- CSV には画像を含めず、画像付きコメントは本文末尾に `[画像添付]` を付与
+- 入室中の URL は `/e/<参加コード>`。リロード時は `getEventByCode` で復元する
+- 送信は Enter、改行は Shift+Enter（IME 変換中は送信しない）
 
 ### リアクション機能
 

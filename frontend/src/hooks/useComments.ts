@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { generateClient } from "aws-amplify/api";
-import { LIST_COMMENTS } from "../graphql/queries";
+import { LIST_COMMENTS, GET_UPLOAD_URL } from "../graphql/queries";
 import { POST_COMMENT, REACT_TO_COMMENT } from "../graphql/mutations";
 import { ON_COMMENT_POSTED, ON_REACTION_UPDATED } from "../graphql/subscriptions";
 import type { Comment, CommentConnection } from "../types";
@@ -129,15 +129,33 @@ export function useComments(eventId: string) {
   }, [eventId, fetchComments]);
 
   const postComment = useCallback(
-    async (content: string, authorName: string) => {
+    async (content: string, authorName: string, imageKey?: string) => {
       const result = await client.graphql({
         query: POST_COMMENT,
-        variables: { input: { eventId, content, authorName } },
+        variables: { input: { eventId, content, authorName, imageKey } },
       });
       return (result as { data: { postComment: Comment } }).data.postComment;
     },
     [eventId]
   );
+
+  // 画像を S3 に直接アップロードし、コメントに添付する imageKey を返す
+  const uploadImage = useCallback(async (file: File) => {
+    const result = await client.graphql({
+      query: GET_UPLOAD_URL,
+      variables: { contentType: file.type },
+    });
+    const { uploadUrl, imageKey } = (
+      result as { data: { getUploadUrl: { uploadUrl: string; imageKey: string } } }
+    ).data.getUploadUrl;
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) throw new Error(`Image upload failed: ${res.status}`);
+    return imageKey;
+  }, []);
 
   const reactToComment = useCallback(
     async (commentCreatedAt: string, emoji: string, action: "add" | "remove") => {
@@ -149,5 +167,5 @@ export function useComments(eventId: string) {
     [eventId]
   );
 
-  return { comments, loading, error, postComment, reactToComment, refetch: fetchComments };
+  return { comments, loading, error, postComment, uploadImage, reactToComment, refetch: fetchComments };
 }

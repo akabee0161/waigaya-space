@@ -19,6 +19,7 @@ export const POST_COMMENT = /* GraphQL */ `
       content
       authorName
       createdAt
+      imageKey
     }
   }
 `;

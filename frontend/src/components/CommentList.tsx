@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Comment } from "../types";
+import { imageUrl } from "../utils/image";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "👏"];
 
@@ -76,6 +77,16 @@ export function CommentList({ comments, loading, onReact }: Props) {
               </span>
             </div>
             <p style={styles.content}>{comment.content}</p>
+            {comment.imageKey && (
+              <a href={imageUrl(comment.imageKey)} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={imageUrl(comment.imageKey)}
+                  alt="添付画像"
+                  loading="lazy"
+                  style={styles.image}
+                />
+              </a>
+            )}
             <div style={styles.reactions}>
               {/* 既存リアクションの表示 */}
               {EMOJIS.filter((e) => (comment.reactions?.[e] ?? 0) > 0).map((emoji) => {
@@ -147,6 +158,10 @@ const styles: Record<string, React.CSSProperties> = {
   author: { fontWeight: 700, fontSize: 14, color: "#4f46e5" },
   time: { fontSize: 12, color: "#999" },
   content: { fontSize: 15, color: "#222", lineHeight: 1.5, wordBreak: "break-word", whiteSpace: "pre-wrap", marginBottom: 10 },
+  image: {
+    display: "block", maxWidth: "100%", maxHeight: 300, borderRadius: 8,
+    marginBottom: 10, border: "1px solid #eee",
+  },
   reactions: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" },
   emojiBtn: {
     display: "flex", alignItems: "center", gap: 3,

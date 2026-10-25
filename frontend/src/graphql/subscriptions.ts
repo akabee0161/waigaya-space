@@ -16,6 +16,7 @@ export const ON_COMMENT_POSTED = /* GraphQL */ `
       content
       authorName
       createdAt
+      imageKey
     }
   }
 `;
