@@ -136,6 +136,7 @@ export function EventRoom({ event, onLeave }: Props) {
             placeholder="お名前"
             value={authorName}
             onChange={(e) => setAuthorName(e.target.value)}
+            readOnly={submitting}
             required
             maxLength={50}
           />

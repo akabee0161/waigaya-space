@@ -43,6 +43,7 @@ export default function App() {
   // restore 呼び出しごとの世代。古い応答が新しい画面を上書きしないようにする
   const restoreGen = useRef(0);
   // 履歴移動のたびに進め、保留中の処理を持つ入力画面を作り直す
+  const navGen = useRef(0);
   const [navKey, setNavKey] = useState(0);
 
   // URL の参加コードからイベントを復元（リロード・URL 共有・戻る/進む）
@@ -83,7 +84,8 @@ export default function App() {
     };
     restore();
     const onPopState = () => {
-      setNavKey((k) => k + 1);
+      navGen.current += 1; // 再描画を待たず同期的に無効化
+      setNavKey(navGen.current);
       restore();
     };
     window.addEventListener("popstate", onPopState);
@@ -99,8 +101,13 @@ export default function App() {
     setScreen("room");
   };
 
-  const handleJoined = enterRoom;
-  const handleCreated = enterRoom;
+  // 送信開始時（描画時）の世代と、現在の世代が一致する場合のみ入室する
+  const guardedEnterRoom = (event: Event) => {
+    if (navKey !== navGen.current) return;
+    enterRoom(event);
+  };
+  const handleJoined = guardedEnterRoom;
+  const handleCreated = guardedEnterRoom;
 
   const handleLeave = () => {
     window.history.pushState(null, "", "/");
