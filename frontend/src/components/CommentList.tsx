@@ -146,7 +146,7 @@ const styles: Record<string, React.CSSProperties> = {
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   author: { fontWeight: 700, fontSize: 14, color: "#4f46e5" },
   time: { fontSize: 12, color: "#999" },
-  content: { fontSize: 15, color: "#222", lineHeight: 1.5, wordBreak: "break-word", marginBottom: 10 },
+  content: { fontSize: 15, color: "#222", lineHeight: 1.5, wordBreak: "break-word", whiteSpace: "pre-wrap", marginBottom: 10 },
   reactions: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" },
   emojiBtn: {
     display: "flex", alignItems: "center", gap: 3,

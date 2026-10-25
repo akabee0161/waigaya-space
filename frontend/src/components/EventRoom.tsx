@@ -60,9 +60,10 @@ export function EventRoom({ event, onLeave }: Props) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      handlePost(e as unknown as React.FormEvent);
-    }
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    if (e.shiftKey) return; // Shift+Enter は改行
+    e.preventDefault();
+    handlePost(e as unknown as React.FormEvent);
   };
 
   return (
@@ -110,7 +111,7 @@ export function EventRoom({ event, onLeave }: Props) {
           <div style={styles.textareaRow}>
             <textarea
               style={styles.textarea}
-              placeholder="コメントを入力… (Ctrl+Enter で送信)"
+              placeholder="コメントを入力… (Enter で送信 / Shift+Enter で改行)"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
