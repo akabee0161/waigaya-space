@@ -11,6 +11,21 @@ interface Props {
 
 const AUTHOR_KEY = "ic_author_name";
 
+function CameraIcon() {
+  return (
+    <svg
+      width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+
+const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+
 export function EventRoom({ event, onLeave }: Props) {
   const [authorName, setAuthorName] = useState(
     () => localStorage.getItem(AUTHOR_KEY) ?? ""
@@ -21,6 +36,8 @@ export function EventRoom({ event, onLeave }: Props) {
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0); // 子要素をまたぐ dragenter/leave の対策
 
   useEffect(() => {
     if (!image) { setPreviewUrl(null); return; }
@@ -97,8 +114,46 @@ export function EventRoom({ event, onLeave }: Props) {
     }
   };
 
+  // ドラッグ&ドロップで画像を添付（ルーム内のどこへドロップしても受け付ける）
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (hasFiles(e)) e.preventDefault(); // drop を受け付ける
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // ブラウザが画像を開いてしまうのを防ぐ
+    dragDepth.current = 0;
+    setDragging(false);
+    if (!event.isActive) return;
+    const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith("image/"));
+    if (file) {
+      selectImage(file);
+    } else {
+      setPostError("画像ファイルをドロップしてください");
+    }
+  };
+
   return (
-    <div style={styles.container}>
+    <div
+      style={styles.container}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {dragging && event.isActive && (
+        <div style={styles.dropOverlay}>画像をドロップして添付</div>
+      )}
       {/* ヘッダー */}
       <div style={styles.header}>
         <div>
@@ -170,7 +225,7 @@ export function EventRoom({ event, onLeave }: Props) {
               disabled={submitting}
               title="画像を添付"
             >
-              🖼
+              <CameraIcon />
             </button>
             <button
               style={{
@@ -207,7 +262,13 @@ export function EventRoom({ event, onLeave }: Props) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { display: "flex", flexDirection: "column", height: "100vh", maxWidth: 720, margin: "0 auto" },
+  container: { display: "flex", flexDirection: "column", height: "100vh", maxWidth: 720, margin: "0 auto", position: "relative" },
+  dropOverlay: {
+    position: "absolute", inset: 0, zIndex: 20, display: "flex",
+    alignItems: "center", justifyContent: "center", pointerEvents: "none",
+    background: "rgba(79,70,229,0.12)", border: "3px dashed #4f46e5",
+    color: "#4f46e5", fontSize: 18, fontWeight: 700,
+  },
   header: {
     display: "flex", justifyContent: "space-between", alignItems: "flex-start",
     padding: "16px 20px", background: "#fff", borderBottom: "1px solid #eee",
@@ -246,7 +307,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   attachBtn: {
     padding: "10px 12px", background: "transparent", border: "1.5px solid #ddd",
-    borderRadius: 8, cursor: "pointer", fontSize: 16,
+    borderRadius: 8, cursor: "pointer", color: "#4f46e5",
   },
   previewRow: { display: "flex", alignItems: "center", gap: 10 },
   preview: { maxHeight: 80, maxWidth: 160, borderRadius: 6, border: "1px solid #eee" },
