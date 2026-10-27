@@ -67,14 +67,21 @@ export function CommentList({ comments, loading, onReact }: Props) {
       if (target?.closest("input, textarea, [contenteditable]")) return;
       unpin();
     };
+    // スクロールバーをつかんだときだけ止める（押した先が一覧の中身ではなく、スクロールする枠そのもの）
+    const scrollContainer = list.parentElement;
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.target === scrollContainer) unpin();
+    };
     const timer = setTimeout(unpin, INITIAL_PIN_MS);
     const opts = { passive: true, once: true } as const;
+    scrollContainer?.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("wheel", unpin, opts);
     window.addEventListener("touchstart", unpin, opts);
     window.addEventListener("keydown", onKey);
     return () => {
       observer.disconnect();
       clearTimeout(timer);
+      scrollContainer?.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("wheel", unpin);
       window.removeEventListener("touchstart", unpin);
       window.removeEventListener("keydown", onKey);
