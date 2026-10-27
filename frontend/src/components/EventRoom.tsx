@@ -43,7 +43,36 @@ const isTouchDevice = typeof window !== "undefined" && window.matchMedia("(point
 // 入力欄が伸びる上限（約 6 行）
 const TEXTAREA_MAX_HEIGHT = 6 * 22;
 
-const hasFiles =(e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+// ヘッダーをスマホ向けの省略表示に切り替える幅
+const NARROW_QUERY = "(max-width: 600px)";
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
+function MoreIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ display: "block" }}>
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
+
+// アドレスバーの出入りで高さが変わるスマホでも画面に収める（未対応ブラウザーは 100vh）
+const FULL_HEIGHT =
+  typeof CSS !== "undefined" && CSS.supports("height", "100dvh") ? "100dvh" : "100vh";
+
+const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
 
 export function EventRoom({ event, onLeave }: Props) {
   const [authorName, setAuthorName] = useState(
@@ -59,6 +88,19 @@ export function EventRoom({ event, onLeave }: Props) {
   const [focused, setFocused] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0); // 子要素をまたぐ dragenter/leave の対策
+  const isNarrow = useMediaQuery(NARROW_QUERY);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isNarrow) setMenuOpen(false);
+  }, [isNarrow]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   // 入力に合わせて高さを伸ばす（上限を超えたら入力欄の中でスクロール）
   useLayoutEffect(() => {
@@ -186,27 +228,75 @@ export function EventRoom({ event, onLeave }: Props) {
       {dragging && event.isActive && (
         <div style={styles.dropOverlay}>画像をドロップして添付</div>
       )}
-      {/* ヘッダー */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>{event.title}</h1>
-          {event.description && (
-            <p style={styles.description}>{event.description}</p>
+      {/* ヘッダー（スマホ幅ではイベント名とコードだけを出し、残りは ⋯ のメニューにしまう） */}
+      {isNarrow ? (
+        <div style={styles.headerNarrow}>
+          <div style={styles.titleBox}>
+            <h1 style={styles.titleNarrow}>{event.title}</h1>
+            <span style={styles.codeNarrow}>{event.participantCode}</span>
+          </div>
+          <button
+            type="button"
+            style={{ ...styles.menuBtn, ...(menuOpen ? styles.menuBtnOpen : {}) }}
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label="メニュー"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <MoreIcon />
+          </button>
+          {menuOpen && (
+            <div style={styles.menu} role="menu">
+              <p style={styles.menuTitle}>{event.title}</p>
+              {event.description && <p style={styles.menuDescription}>{event.description}</p>}
+              <div style={styles.menuCode}>
+                <span>参加コード</span>
+                <span style={styles.menuCodeValue}>{event.participantCode}</span>
+              </div>
+              <div style={styles.menuSeparator} />
+              <button
+                type="button"
+                role="menuitem"
+                style={{ ...styles.menuItem, ...(loading || comments.length === 0 ? styles.menuItemDisabled : {}) }}
+                onClick={() => { handleDownloadCSV(); setMenuOpen(false); }}
+                disabled={loading || comments.length === 0}
+              >
+                CSV をダウンロード
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                style={{ ...styles.menuItem, ...styles.menuItemLeave }}
+                onClick={() => { setMenuOpen(false); onLeave(); }}
+              >
+                退出
+              </button>
+            </div>
           )}
         </div>
-        <div style={styles.headerRight}>
-          <div style={styles.codeBox}>
-            <span style={styles.codeLabel}>参加コード</span>
-            <span style={styles.code}>{event.participantCode}</span>
+      ) : (
+        <div style={styles.header}>
+          <div>
+            <h1 style={styles.title}>{event.title}</h1>
+            {event.description && (
+              <p style={styles.description}>{event.description}</p>
+            )}
           </div>
-          <button style={styles.csvBtn} onClick={handleDownloadCSV} disabled={loading || comments.length === 0}>
-            DL
-          </button>
-          <button style={styles.leaveBtn} onClick={onLeave}>
-            退出
-          </button>
+          <div style={styles.headerRight}>
+            <div style={styles.codeBox}>
+              <span style={styles.codeLabel}>参加コード</span>
+              <span style={styles.code}>{event.participantCode}</span>
+            </div>
+            <button style={styles.csvBtn} onClick={handleDownloadCSV} disabled={loading || comments.length === 0}>
+              DL
+            </button>
+            <button style={styles.leaveBtn} onClick={onLeave}>
+              退出
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+      {isNarrow && menuOpen && <div style={styles.scrim} onClick={() => setMenuOpen(false)} />}
 
       {/* コメント一覧 */}
       <div style={styles.commentsArea}>
@@ -303,7 +393,7 @@ export function EventRoom({ event, onLeave }: Props) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { display: "flex", flexDirection: "column", height: "100vh", maxWidth: 720, margin: "0 auto", position: "relative" },
+  container: { display: "flex", flexDirection: "column", height: FULL_HEIGHT, maxWidth: 720, margin: "0 auto", position: "relative" },
   dropOverlay: {
     position: "absolute", inset: 0, zIndex: 20, display: "flex",
     alignItems: "center", justifyContent: "center", pointerEvents: "none",
@@ -315,6 +405,43 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "16px 20px", background: "#fff", borderBottom: "1px solid #eee",
     flexShrink: 0,
   },
+  headerNarrow: {
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "8px 6px 8px 14px", background: "#fff", borderBottom: "1px solid #eee",
+    flexShrink: 0, position: "relative", zIndex: 31, // メニューを開いても ⋯ は暗くせず押せるようにする
+  },
+  titleBox: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" },
+  titleNarrow: {
+    fontSize: 16, fontWeight: 700, color: "#1a1a2e",
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  },
+  codeNarrow: { fontSize: 12, fontWeight: 700, color: "#4f46e5", letterSpacing: 1.5 },
+  menuBtn: {
+    width: 36, height: 36, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+    background: "transparent", border: "none", borderRadius: "50%", cursor: "pointer", color: "#666",
+  },
+  menuBtnOpen: { background: "#f5f5f5" },
+  menu: {
+    position: "absolute", top: "calc(100% + 4px)", right: 8, left: 40,
+    display: "flex", flexDirection: "column", padding: 8,
+    background: "#fff", border: "1px solid #eee", borderRadius: 12,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
+  },
+  menuTitle: { padding: "6px 10px 2px", fontSize: 15, fontWeight: 700, color: "#1a1a2e", lineHeight: 1.45, wordBreak: "break-word" },
+  menuDescription: { padding: "2px 10px 6px", fontSize: 12, color: "#666", lineHeight: 1.5, wordBreak: "break-word" },
+  menuCode: {
+    display: "flex", justifyContent: "space-between", alignItems: "baseline",
+    padding: "6px 10px", fontSize: 12, color: "#666",
+  },
+  menuCodeValue: { fontSize: 18, fontWeight: 800, color: "#4f46e5", letterSpacing: 3 },
+  menuSeparator: { height: 1, background: "#eee", margin: "4px 2px" },
+  menuItem: {
+    padding: 10, fontSize: 14, textAlign: "left", color: "#1a1a2e",
+    background: "transparent", border: "none", borderRadius: 8, cursor: "pointer",
+  },
+  menuItemDisabled: { color: "#bbb", cursor: "default" },
+  menuItemLeave: { color: "#c92a2a" },
+  scrim: { position: "fixed", inset: 0, zIndex: 30, background: "rgba(0,0,0,0.25)" },
   title: { fontSize: 20, fontWeight: 700, color: "#1a1a2e" },
   description: { fontSize: 13, color: "#666", marginTop: 4 },
   headerRight: { display: "flex", alignItems: "center", gap: 12 },
