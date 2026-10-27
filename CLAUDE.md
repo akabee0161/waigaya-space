@@ -77,6 +77,7 @@ waigaya-space/
 | `WaigayaSpace-Events` | `eventId` (String) | なし | `ParticipantCodeIndex` (participantCode) |
 | `WaigayaSpace-Comments` | `eventId` (String) | `createdAt` (String) | なし |
 
+- Comments テーブルのソートキー `createdAt` が同じミリ秒でぶつかった場合、`create-comment` は上書きせず 1ms ずらして保存し直す（条件付き書き込み、最大 10 回）
 - Comments テーブルの `reactions` 属性は `AWSJSON`（Map 型）で絵文字をキー、カウントを値として保存
 - 例: `{ "👍": 3, "❤️": 1 }`
 
@@ -153,7 +154,11 @@ git push origin main
 - 対応形式は JPEG/PNG/GIF/WebP、5MB 以下（上限チェックはフロントのみ）。画像のみの投稿は不可（テキスト必須）
 - CSV には画像を含めず、画像付きコメントは本文末尾に `[画像添付]` を付与
 - 入室中の URL は `/e/<参加コード>`。リロード時は `getEventByCode` で復元する
-- 送信は Enter、改行は Shift+Enter（IME 変換中は送信しない）
+- パソコンでは送信は Enter、改行は Shift+Enter（IME 変換中は送信しない）。指で操作する端末（`pointer: coarse`）では Enter は改行で、送信はボタンのみ
+- 入力欄は 1 行から約 6 行まで高さが伸び、添付・送信ボタンは入力欄の枠の下側に並ぶ
+- 画面の幅が 600px 以下では、ヘッダーにイベント名（1 行で省略）と参加コードだけを出し、イベント名の全体・説明文・CSV ダウンロード・退出は ⋯ のメニューにしまう（⋯・メニューの外・Esc で閉じる）。ルーム全体の高さは `100dvh`（未対応なら `100vh`）
+- 画像をクリックすると画面上のポップアップで拡大表示する（背景のタップ・✕・Esc で閉じる）
+- 入室時はスクロールの動きを見せずに一番下から表示する。入室直後は、利用者が自分でスクロールするまで（最長 10 秒）画像の読み込みで高さが変わっても一番下に合わせ続ける
 
 ### リアクション機能
 

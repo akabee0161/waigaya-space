@@ -1,4 +1,4 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 
@@ -7,6 +7,8 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 const EVENTS_TABLE = process.env.EVENTS_TABLE!;
 const COMMENTS_TABLE = process.env.COMMENTS_TABLE!;
+
+const MAX_PUT_ATTEMPTS = 10;
 
 const IMAGE_KEY_PATTERN = /^images\/[0-9a-f-]{36}\.(jpg|png|gif|webp)$/;
 
@@ -43,25 +45,32 @@ export const handler = async (event: {
   }
 
   const commentId = randomUUID();
-  const createdAt = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 72 * 60 * 60;
+  let time = Date.now();
 
-  const item = {
-    eventId,
-    createdAt,
-    commentId,
-    content,
-    authorName,
-    ...(imageKey ? { imageKey } : {}),
-    ttl,
-  };
-
-  await docClient.send(
-    new PutCommand({
-      TableName: COMMENTS_TABLE,
-      Item: item,
-    })
-  );
-
-  return item;
+  // createdAt はソートキーのため、同じミリ秒の投稿が既にあれば上書きせず 1ms ずらして保存し直す
+  for (let attempt = 0; attempt < MAX_PUT_ATTEMPTS; attempt++, time++) {
+    const item = {
+      eventId,
+      createdAt: new Date(time).toISOString(),
+      commentId,
+      content,
+      authorName,
+      ...(imageKey ? { imageKey } : {}),
+      ttl,
+    };
+    try {
+      await docClient.send(
+        new PutCommand({
+          TableName: COMMENTS_TABLE,
+          Item: item,
+          ConditionExpression: "attribute_not_exists(createdAt)",
+        })
+      );
+      return item;
+    } catch (err) {
+      if (!(err instanceof ConditionalCheckFailedException)) throw err;
+    }
+  }
+  throw new Error("Failed to save comment: createdAt collided repeatedly");
 };
