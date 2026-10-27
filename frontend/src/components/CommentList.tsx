@@ -27,6 +27,9 @@ interface Props {
 // 入室直後、画像の読み込みで高さが変わっても一番下に合わせ続ける時間の上限
 const INITIAL_PIN_MS = 10_000;
 
+// 利用者が自分でスクロールしたとみなすキー
+const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+
 export function CommentList({ comments, loading, onReact }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -34,6 +37,7 @@ export function CommentList({ comments, loading, onReact }: Props) {
   const [pinned, setPinned] = useState(false);
   const [openPickerId, setOpenPickerId] = useState<string | null>(null);
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [, forceUpdate] = useState(0);
 
   // 初回の読み込みは描画前に一番下へ移動し、スクロールの動きを見せない。以降の新着は滑らかに追う
@@ -56,25 +60,45 @@ export function CommentList({ comments, loading, onReact }: Props) {
     const observer = new ResizeObserver(() => bottomRef.current?.scrollIntoView({ block: "end" }));
     observer.observe(list);
     const unpin = () => setPinned(false);
+    // 文字の入力では止めず、入力欄の外でスクロールに使うキーが押されたときだけ止める
+    const onKey = (e: KeyboardEvent) => {
+      if (!SCROLL_KEYS.has(e.key)) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable]")) return;
+      unpin();
+    };
     const timer = setTimeout(unpin, INITIAL_PIN_MS);
     const opts = { passive: true, once: true } as const;
     window.addEventListener("wheel", unpin, opts);
     window.addEventListener("touchstart", unpin, opts);
-    window.addEventListener("keydown", unpin, { once: true });
+    window.addEventListener("keydown", onKey);
     return () => {
       observer.disconnect();
       clearTimeout(timer);
       window.removeEventListener("wheel", unpin);
       window.removeEventListener("touchstart", unpin);
-      window.removeEventListener("keydown", unpin);
+      window.removeEventListener("keydown", onKey);
     };
   }, [pinned]);
 
+  // 拡大表示中は操作位置を ✕ ボタンに閉じ込め、閉じたら開いた元の画像に戻す
   useEffect(() => {
     if (!zoomUrl) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setZoomUrl(null); };
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeBtnRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setZoomUrl(null);
+      } else if (e.key === "Tab") {
+        e.preventDefault(); // ダイアログ内で操作できるのは ✕ ボタンだけ
+        closeBtnRef.current?.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
   }, [zoomUrl]);
 
   const handleReact = (comment: Comment, emoji: string) => {
@@ -211,6 +235,7 @@ export function CommentList({ comments, loading, onReact }: Props) {
             onClick={(e) => e.stopPropagation()}
           />
           <button
+            ref={closeBtnRef}
             type="button"
             style={styles.lightboxClose}
             onClick={() => setZoomUrl(null)}

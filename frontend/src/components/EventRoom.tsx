@@ -90,16 +90,21 @@ export function EventRoom({ event, onLeave }: Props) {
   const dragDepth = useRef(0); // 子要素をまたぐ dragenter/leave の対策
   const isNarrow = useMediaQuery(NARROW_QUERY);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!isNarrow) setMenuOpen(false);
   }, [isNarrow]);
 
+  // メニューを閉じたら、操作位置を ⋯ ボタンに戻す（項目が消えて行き場を失わないように）
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      menuBtnRef.current?.focus();
+    };
   }, [menuOpen]);
 
   // 入力に合わせて高さを伸ばす（上限を超えたら入力欄の中でスクロール）
@@ -236,6 +241,7 @@ export function EventRoom({ event, onLeave }: Props) {
             <span style={styles.codeNarrow}>{event.participantCode}</span>
           </div>
           <button
+            ref={menuBtnRef}
             type="button"
             style={{ ...styles.menuBtn, ...(menuOpen ? styles.menuBtnOpen : {}) }}
             onClick={() => setMenuOpen((open) => !open)}
