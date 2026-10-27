@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Comment } from "../types";
 import { imageUrl } from "../utils/image";
 
@@ -24,14 +24,58 @@ interface Props {
   onReact: (commentCreatedAt: string, emoji: string, action: "add" | "remove") => void;
 }
 
+// 入室直後、画像の読み込みで高さが変わっても一番下に合わせ続ける時間の上限
+const INITIAL_PIN_MS = 10_000;
+
 export function CommentList({ comments, loading, onReact }: Props) {
+  const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const initialScrolled = useRef(false);
+  const [pinned, setPinned] = useState(false);
   const [openPickerId, setOpenPickerId] = useState<string | null>(null);
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [, forceUpdate] = useState(0);
 
+  // 初回の読み込みは描画前に一番下へ移動し、スクロールの動きを見せない。以降の新着は滑らかに追う
+  useLayoutEffect(() => {
+    if (loading || comments.length === 0) return;
+    if (initialScrolled.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    initialScrolled.current = true;
+    bottomRef.current?.scrollIntoView({ block: "end" });
+    setPinned(true);
+  }, [comments.length, loading]);
+
+  // 入室直後は、利用者が自分でスクロールするまで（上限 INITIAL_PIN_MS）高さの変化に追従する
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [comments.length]);
+    if (!pinned) return;
+    const list = listRef.current;
+    if (!list) return;
+    const observer = new ResizeObserver(() => bottomRef.current?.scrollIntoView({ block: "end" }));
+    observer.observe(list);
+    const unpin = () => setPinned(false);
+    const timer = setTimeout(unpin, INITIAL_PIN_MS);
+    const opts = { passive: true, once: true } as const;
+    window.addEventListener("wheel", unpin, opts);
+    window.addEventListener("touchstart", unpin, opts);
+    window.addEventListener("keydown", unpin, { once: true });
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+      window.removeEventListener("wheel", unpin);
+      window.removeEventListener("touchstart", unpin);
+      window.removeEventListener("keydown", unpin);
+    };
+  }, [pinned]);
+
+  useEffect(() => {
+    if (!zoomUrl) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setZoomUrl(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomUrl]);
 
   const handleReact = (comment: Comment, emoji: string) => {
     const reacted = getReacted(comment.commentId);
@@ -62,7 +106,7 @@ export function CommentList({ comments, loading, onReact }: Props) {
   }
 
   return (
-    <div style={styles.list}>
+    <div ref={listRef} style={styles.list}>
       {comments.map((comment) => {
         const reacted = getReacted(comment.commentId);
         return (
@@ -78,7 +122,15 @@ export function CommentList({ comments, loading, onReact }: Props) {
             </div>
             <p style={styles.content}>{comment.content}</p>
             {comment.imageKey && (
-              <a href={imageUrl(comment.imageKey)} target="_blank" rel="noopener noreferrer">
+              <a
+                href={imageUrl(comment.imageKey)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setZoomUrl(imageUrl(comment.imageKey!));
+                }}
+              >
                 <img
                   src={imageUrl(comment.imageKey)}
                   alt="添付画像"
@@ -144,12 +196,49 @@ export function CommentList({ comments, loading, onReact }: Props) {
         );
       })}
       <div ref={bottomRef} />
+      {zoomUrl && (
+        <div
+          style={styles.lightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-label="画像の拡大表示"
+          onClick={() => setZoomUrl(null)}
+        >
+          <img
+            src={zoomUrl}
+            alt="添付画像（拡大）"
+            style={styles.lightboxImage}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            style={styles.lightboxClose}
+            onClick={() => setZoomUrl(null)}
+            aria-label="閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   list: { display: "flex", flexDirection: "column", gap: 10, padding: "8px 0" },
+  lightbox: {
+    position: "fixed", inset: 0, zIndex: 100, display: "flex",
+    alignItems: "center", justifyContent: "center",
+    background: "rgba(0,0,0,0.85)", padding: 16,
+  },
+  lightboxImage: {
+    maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 4,
+  },
+  lightboxClose: {
+    position: "absolute", top: 12, right: 12, width: 40, height: 40,
+    background: "rgba(255,255,255,0.15)", color: "#fff", border: "none",
+    borderRadius: "50%", fontSize: 18, cursor: "pointer",
+  },
   card: {
     background: "#fff", borderRadius: 10, padding: "12px 16px",
     boxShadow: "0 1px 4px rgba(0,0,0,0.08)", border: "1px solid #f0f0f0",
